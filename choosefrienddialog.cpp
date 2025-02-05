@@ -4,6 +4,8 @@
 #include <QPainter>
 #include "debug.h"
 #include "model/data.h"
+#include "model/datacenter.h"
+#include "toast.h"
 
 ///////////////////////////////////////
 /// 选择好友窗口中的一个元素
@@ -40,7 +42,7 @@ ChooseFriendItem::ChooseFriendItem(const QString& userId, const QIcon &avatar, c
     // 5. 创建名字
     nameLabel = new QLabel();
     nameLabel->setText(name);
-    nameLabel->setStyleSheet("QLabel { background-color: transparent; }");
+    nameLabel->setStyleSheet("QLabel { background-color: transparent; color: black; }");
 
     // 6. 添加到布局管理器
     layout->addWidget(checkBox);
@@ -52,6 +54,7 @@ ChooseFriendItem::ChooseFriendItem(const QString& userId, const QIcon &avatar, c
         if(checked)
         {
             // 勾选了
+            emit chooseOneFriend();
             // 这四个parent分别是 totalContainer  qt_scrollarea_viewport  QScrollArea  ChooseFriendDialog
             ChooseFriendDialog* chooseFriendDialog = qobject_cast<ChooseFriendDialog*>(this->parent()->parent()->parent()->parent());
             if(chooseFriendDialog)
@@ -63,7 +66,8 @@ ChooseFriendItem::ChooseFriendItem(const QString& userId, const QIcon &avatar, c
         else
         {
             // 没有勾选
-                ChooseFriendDialog* chooseFriendDialog = qobject_cast<ChooseFriendDialog*>(this->parent()->parent()->parent()->parent());
+            emit cancelOneFriend();
+            ChooseFriendDialog* chooseFriendDialog = qobject_cast<ChooseFriendDialog*>(this->parent()->parent()->parent()->parent());
             if(chooseFriendDialog)
                 chooseFriendDialog->deleteSelectedFriend(userId);
             else
@@ -106,8 +110,8 @@ const QString& ChooseFriendItem::getUserId()
 ///////////////////////////////////////
 /// 选择好友的窗口
 ///////////////////////////////////////
-ChooseFriendDialog::ChooseFriendDialog(QWidget* parent)
-    :QDialog(parent)
+ChooseFriendDialog::ChooseFriendDialog(QWidget* parent, const QString& userId)
+    :QDialog(parent), userId(userId)
 {
     // 1. 设置窗口基本属性
     this->setWindowTitle("选择好友");
@@ -127,6 +131,9 @@ ChooseFriendDialog::ChooseFriendDialog(QWidget* parent)
 
     // 4. 针对右侧窗口进行初始化
     initRight(layout);
+
+    // 5. 加载数据到窗口中
+    initData();
 }
 
 void ChooseFriendDialog::initLeft(QHBoxLayout *layout)
@@ -202,7 +209,7 @@ void ChooseFriendDialog::initRight(QHBoxLayout *layout)
     tipLabel->setFixedHeight(30);
     tipLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     tipLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    tipLabel->setStyleSheet("QLabel { font-size: 16px; font-weight: 700; }");
+    tipLabel->setStyleSheet("QLabel { font-size: 16px; font-weight: 700; color: black;}");
 
     // 3.创建滚动区域
     QScrollArea* scrollArea = new QScrollArea();
@@ -257,13 +264,15 @@ void ChooseFriendDialog::initRight(QHBoxLayout *layout)
     style += "QPushButton:hover {background-color: rgb(220, 220, 220);}";
     style += "QPushButton:pressed {background-color: rgb(200, 200, 200);}";
 
-    QPushButton* okBtn = new QPushButton();
+    okBtn = new QPushButton();
     okBtn->setFixedHeight(40);
     okBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     okBtn->setText("完成");
     okBtn->setStyleSheet(style);
+    okBtn->setStyleSheet("QPushButton{ background-color: rgb(180, 180, 180); }");
+    okBtn->setEnabled(false);
 
-    QPushButton* cancelBtn = new QPushButton();
+    cancelBtn = new QPushButton();
     cancelBtn->setFixedHeight(40);
     cancelBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     cancelBtn->setText("取消");
@@ -274,11 +283,68 @@ void ChooseFriendDialog::initRight(QHBoxLayout *layout)
     gridLayout->addWidget(scrollArea, 1, 0, 1, 9);
     gridLayout->addWidget(okBtn, 2, 1, 1, 3);
     gridLayout->addWidget(cancelBtn, 2, 5, 1, 3);
+
+    // 8. 添加信号槽，处理 ok 和 cancel 点击
+    connect(okBtn, &QPushButton::clicked, this, &ChooseFriendDialog::clickOkBtn);
+    connect(cancelBtn, &QPushButton::clicked, this, [=](){this->close();});
+}
+
+void ChooseFriendDialog::initData()
+{
+    // 遍历好友列表，把好友列表中的所有元素，添加到这个窗口上
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    QList<model::UserInfo>* friendList = dataCenter->getFriendList();
+    if(friendList == nullptr)
+    {
+        LOG()<<"加载数据时好友列表为空";
+        return;
+    }
+    for(auto it = friendList->begin(); it != friendList->end(); ++it)
+    {
+        if(it->userId == this->userId)
+        {
+            this->addSelectedFriend(it->userId, it->avatar, it->nickname);
+            this->addFriend(it->userId, it->avatar, it->nickname, true);
+        }
+        else
+        {
+            this->addFriend(it->userId, it->avatar, it->nickname, false);
+        }
+    }
 }
 
 void ChooseFriendDialog::addFriend(const QString& userId, const QIcon &avatar, const QString &name, bool checked)
 {
+    QString style = "QPushButton { color: rgb(7, 191, 96); background-color: rgb(240, 240, 240); border: none; border-radius: 5px; }";
+    style += "QPushButton:hover {background-color: rgb(220, 220, 220);}";
+    style += "QPushButton:pressed {background-color: rgb(200, 200, 200);}";
     ChooseFriendItem* item = new ChooseFriendItem(userId, avatar, name, checked);
+    connect(item, &ChooseFriendItem::chooseOneFriend, this, [=](){
+        ++this->count;
+        if(count < 2)
+        {
+            okBtn->setEnabled(false);
+            okBtn->setStyleSheet("QPushButton{ background-color: rgb(180, 180, 180); }");
+        }
+        else
+        {
+            okBtn->setEnabled(true);
+            okBtn->setStyleSheet(style);
+        }
+    });
+    connect(item, &ChooseFriendItem::cancelOneFriend, this, [=](){
+        --this->count;
+        if(count < 2)
+        {
+            okBtn->setEnabled(false);
+            okBtn->setStyleSheet("QPushButton{ background-color: rgb(180, 180, 180); }");
+        }
+        else
+        {
+            okBtn->setEnabled(true);
+            okBtn->setStyleSheet(style);
+        }
+    });
     totalContainer->layout()->addWidget(item);
 }
 
@@ -321,4 +387,49 @@ void ChooseFriendDialog::deleteSelectedFriend(const QString &userId)
         // 取消 checkBox的选中状态
         chooseFriendItem->getCheckBox()->setChecked(false);
     }
+}
+
+void ChooseFriendDialog::clickOkBtn()
+{
+    // 1. 根据选中的好友列表中的元素，得到所有的要创建群聊会话的用户 id 列表
+    QList<QString> userIdList =generateMemberList();
+    // if(userIdList.size() < 3)
+    // {
+    //     Toast::showMessage("群聊中成员不足三个，无法创建群聊");
+    //     return;
+    // }
+
+    // 2. 发送网络请求，创建群聊
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    dataCenter->createGroupChatSessionAsync(userIdList);
+
+    // 3. 关闭当前窗口
+    this->close();
+}
+
+QList<QString> ChooseFriendDialog::generateMemberList()
+{
+    QList<QString> result;
+
+    // 1. 把自己添加到结果中
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    if(dataCenter->getMyself() == nullptr)
+    {
+        LOG()<<"个人信息尚未加载";
+        return result;
+    }
+    result.push_back(dataCenter->getMyself()->userId);
+
+    // 2. 遍历选中的列表
+    // 遍历 selectedContainer 中的每个 Item
+    QVBoxLayout* vlayout = dynamic_cast<QVBoxLayout*>(selectedContainer->layout());
+    for(int i = 0; i < vlayout->count(); ++i)
+    {
+        QLayoutItem* item = vlayout->itemAt(i);
+        if(item == nullptr || item->widget() == nullptr)
+            continue;
+        ChooseFriendItem* chooseFriendItem = dynamic_cast<ChooseFriendItem*>(item->widget());
+        result.push_back(chooseFriendItem->getUserId());
+    }
+    return result;
 }

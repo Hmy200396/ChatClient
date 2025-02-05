@@ -4,6 +4,7 @@
 #include "../model/data.h"
 #include "../model//datacenter.h"
 #include "../toast.h"
+#include "../mainwidget.h"
 
 namespace network{
 
@@ -79,6 +80,9 @@ void NetClient::handleWsResponse(const proto::NotifyMessage &notifyMessage)
     else if(notifyMessage.notifyType() == proto::NotifyTypeGadget::NotifyType::CHAT_SESSION_CREATE_NOTIFY)
     {
         // 创建新的会话通知
+        model::ChatSessionInfo chatSessionInfo;
+        chatSessionInfo.load(notifyMessage.newChatSessionInfo().chatSessionInfo());
+        handleWsSessionCreate(chatSessionInfo);
     }
     else if(notifyMessage.notifyType() == proto::NotifyTypeGadget::NotifyType::FRIEND_ADD_APPLY_NOTIFY)
     {
@@ -90,6 +94,10 @@ void NetClient::handleWsResponse(const proto::NotifyMessage &notifyMessage)
     else if(notifyMessage.notifyType() == proto::NotifyTypeGadget::NotifyType::FRIEND_ADD_PROCESS_NOTIFY)
     {
         // 添加好友申请的处理结果通知
+        model::UserInfo userInfo;
+        userInfo.load(notifyMessage.friendProcessResult().userInfo());
+        bool agree = notifyMessage.friendProcessResult().agree();
+        handleWsAddFriendProcess(userInfo, agree);
     }
     else if(notifyMessage.notifyType() == proto::NotifyTypeGadget::NotifyType::FRIEND_REMOVE_NOTIFY)
     {
@@ -142,11 +150,55 @@ void NetClient::handleWsAddFriendApply(const model::UserInfo &userInfo)
         LOG()<<"客户端没有加载到好友申请列表！";
         return;
     }
+    // 如果该用户重复申请，则将最近一次申请的内容删除
+    dataCenter->removeFromApplyList(userInfo.userId);
     // 把新元素放到列表前面
     applyList->push_front(userInfo);
 
     // 2. 通知界面更新
     emit dataCenter->receiveFriendApplyDone();
+}
+
+void NetClient::handleWsSessionCreate(const model::ChatSessionInfo &chatSessionInfo)
+{
+    // 把这个 ChatSessionInfo 添加到会话列表
+    QList<model::ChatSessionInfo>* chatSessionList = dataCenter->getSessionList();
+    if(chatSessionList == nullptr)
+    {
+        LOG()<<"客户端没有加载会话列表";
+        return;
+    }
+    // 新的元素添加到列表头部
+    chatSessionList->push_front(chatSessionInfo);
+    // 发送一个信号，通知界面更新
+    emit dataCenter->receiveSessionCreateDone();
+}
+
+void NetClient::handleWsAddFriendProcess(const model::UserInfo &userInfo, bool agree)
+{
+    if(agree)
+    {
+        // 对方同意了
+        QList<model::UserInfo>* friendList = dataCenter->getFriendList();
+        if(friendList == nullptr)
+        {
+            LOG()<<"客户端没有加载好友列表";
+            return;
+        }
+
+        // 防止重复添加好友，所以先判断一下
+        if(dataCenter->isInFriendList(userInfo.userId))
+            return;
+        friendList->push_front(userInfo);
+
+        // 更新界面
+        emit dataCenter->receiveFriendProcessDone(userInfo.nickname, agree);
+    }
+    else
+    {
+        // 对方未同意
+        emit dataCenter->receiveFriendProcessDone(userInfo.nickname, agree);
+    }
 }
 
 void NetClient::sendAuth()
@@ -746,6 +798,137 @@ void NetClient::addFriendApply(const QString &loginSessionId, const QString &use
 
         //e) 打印日志
         LOG() << "[添加好友申请] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::acceptFriendApply(const QString &loginSessionId, const QString &userId)
+{
+    // 好友申请处理                    /service/friend/add_friend_process
+    // 1. 构造请求 body
+    proto::FriendAddProcessReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setAgree(true);
+    pbReq.setApplyUserId(userId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[同意好友申请] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId() << ", userId = " << pbReq.applyUserId();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/add_friend_process", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::FriendAddProcessRsp> pbResp = this->handleHttpResponse<proto::FriendAddProcessRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[同意好友申请] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 把结果写入到 DataCenter 中，此处做一个好友列表的更新
+        // 一个是把数据从好友申请列表中删除掉
+        // 另一个是把好友申请列表中的这个数据添加到好友列表中
+        model::UserInfo applyUser = dataCenter->removeFromApplyList(userId);
+        // 防止重复添加好友，所以先判断一下
+        if(dataCenter->isInFriendList(userId))
+        {
+            emit dataCenter->updateApplyListUI();
+            Toast::showMessage("你们已经是好友了，不能重复添加");
+            return;
+        }
+        QList<model::UserInfo>* friendList = dataCenter->getFriendList();
+        friendList->push_front(applyUser);
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->acceptFriendApplyDone(applyUser.nickname);
+
+        //e) 打印日志
+        LOG() << "[同意好友申请] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::rejectFriendApply(const QString &loginSessionId, const QString &userId)
+{
+    // 好友申请处理                    /service/friend/add_friend_process
+    // 1. 构造请求 body
+    proto::FriendAddProcessReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setAgree(false);
+    pbReq.setApplyUserId(userId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[拒绝好友申请] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId() << ", userId = " << pbReq.applyUserId();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/add_friend_process", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::FriendAddProcessRsp> pbResp = this->handleHttpResponse<proto::FriendAddProcessRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[拒绝好友申请] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 删除申请列表元素，不需要更新好友列表
+        dataCenter->removeFromApplyList(userId);
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->rejectFriendApplyDone();
+
+        //e) 打印日志
+        LOG() << "[拒绝好友申请] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::createGroupChatSession(const QString &loginSessionId, const QList<QString> &userIdList)
+{
+    // 创建消息会话                    /service/friend/create_chat_session
+    // 1. 构造请求 body
+    proto::ChatSessionCreateReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setChatSessionName("新的群聊");
+    pbReq.setMemberIdList(userIdList);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[创建群聊会话] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId()<< ", userIdList = " << userIdList;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/create_chat_session", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::ChatSessionCreateRsp> pbResp = this->handleHttpResponse<proto::ChatSessionCreateRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[创建群聊会话] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 由于此处创建好的会话，是 websocket 推送过来的
+        // 在这里无需更新 DataCenter，后续通过 websocket 的逻辑来更新
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->createGroupChatSessionDone();
+
+        //e) 打印日志
+        LOG() << "[创建群聊会话] 响应完毕！ requestId = " << pbResp->requestId();
     });
 }
 

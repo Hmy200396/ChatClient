@@ -234,15 +234,32 @@ void MainWidget::initSignalSlot()
     //////////////////////////////////////////////////
     connect(extraBtn, &QPushButton::clicked, this, [=](){
         // 判断当前会话是单聊还是群聊
-#if TEST_GROUP_SESSION_DETAIL
-        bool isSingleChat = false;
-#else
-        bool isSingleChat = true;
-#endif
+
+// #if TEST_GROUP_SESSION_DETAIL
+//         bool isSingleChat = false;
+// #else
+//         bool isSingleChat = true;
+// #endif
+
+        // 获取到当前会话的详细信息，通过会话中的 userId 属性
+        model::ChatSessionInfo* chatSessionInfo = dataCenter->findChatSessionById(dataCenter->getCurrentChatSessionId());
+        if(chatSessionInfo == nullptr)
+        {
+            LOG()<<"当前会话不存在，无法弹出会话详情对话框";
+            return;
+        }
+        bool isSingleChat = chatSessionInfo->userId != "";
         if(isSingleChat)
         {
             // 单聊
-            SessionDetailWidget* sessionDetailWidget = new SessionDetailWidget(this);
+            model::UserInfo* userInfo = dataCenter->findFriendById(chatSessionInfo->userId);
+            if(userInfo == nullptr)
+            {
+                LOG()<<"单聊会话对应的用户不存在，无法弹出会话详情窗口";
+                Toast::showMessage("该用户已经不是你的好友了");
+            }
+
+            SessionDetailWidget* sessionDetailWidget = new SessionDetailWidget(this, *userInfo);
             sessionDetailWidget->exec();
         }
         else
@@ -338,6 +355,57 @@ void MainWidget::initSignalSlot()
     connect(dataCenter, &model::DataCenter::receiveFriendApplyDone, this, [=](){
         this->updateApplyList();
         Toast::showMessage("收到新的好友申请");
+    });
+
+    //////////////////////////////////////////////////
+    // 处理同意好友申请
+    //////////////////////////////////////////////////
+    connect(dataCenter, &model::DataCenter::acceptFriendApplyDone, this, [=](const QString& nickName){
+        this->updateApplyList();
+        this->updateFriendList();
+        Toast::showMessage("您已与"+nickName+"成为好友");
+    });
+    connect(dataCenter, &model::DataCenter::updateApplyListUI, this, [=](){
+        this->updateApplyList();
+    });
+
+    //////////////////////////////////////////////////
+    // 处理拒绝好友申请
+    //////////////////////////////////////////////////
+    connect(dataCenter, &model::DataCenter::rejectFriendApplyDone, this, [=](){
+        this->updateApplyList();
+    });
+
+    //////////////////////////////////////////////////
+    // 处理好友申请结果的推送数据
+    //////////////////////////////////////////////////
+    connect(dataCenter, &model::DataCenter::receiveFriendProcessDone, this, [=](const QString& nickName, bool agree){
+        if(agree)
+        {
+            // 同意
+            this->updateFriendList();
+            Toast::showMessage(nickName+"同意了你的好友申请");
+        }
+        else
+        {
+            // 拒绝
+            Toast::showMessage(nickName+"拒绝了你的好友申请");
+        }
+    });
+
+    //////////////////////////////////////////////////
+    // 处理创建群聊的响应信号
+    //////////////////////////////////////////////////
+    connect(dataCenter, &model::DataCenter::createGroupChatSessionDone, this, [=](){
+        Toast::showMessage("创建群聊会话请求已经发送");
+    });
+
+    //////////////////////////////////////////////////
+    // 处理创建会话的推送数据
+    //////////////////////////////////////////////////
+    connect(dataCenter, &model::DataCenter::receiveSessionCreateDone, this, [=](){
+        this->updateChatSessionList();
+        Toast::showMessage("您被拉入到新的群聊中");
     });
 }
 

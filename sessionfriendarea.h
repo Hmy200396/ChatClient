@@ -114,6 +114,8 @@ class ApplyItem : public SessionFriendItem
 public:
     ApplyItem(QWidget* owner, const QString& userId, const QIcon& avatar, const QString& name);
     void active() override;
+    void acceptFriendApply();
+    void rejectFriendApply();
 private:
     // 申请人的 userid
     QString userId;

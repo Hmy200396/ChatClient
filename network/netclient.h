@@ -35,6 +35,8 @@ public:
     void handleWsMessage(const model::Message& message);
     void handleWsRemoveFriend(const QString& userId);
     void handleWsAddFriendApply(const model::UserInfo& userInfo);
+    void handleWsAddFriendProcess(const model::UserInfo& userInfo, bool agree);
+    void handleWsSessionCreate(const model::ChatSessionInfo& chatSessionInfo);
     // 发送身份认证请求
     void sendAuth();
     // 生成请求 id
@@ -93,6 +95,9 @@ public:
     void changeAvatar(const QString& loginSessionId, const QByteArray& avatar);
     void deleteFriend(const QString& loginSessionId, const QString& userId);
     void addFriendApply(const QString& loginSessionId, const QString& userId);
+    void acceptFriendApply(const QString& loginSessionId, const QString& userId);
+    void rejectFriendApply(const QString& loginSessionId, const QString& userId);
+    void createGroupChatSession(const QString& loginSessionId, const QList<QString>& userIdList);
 
 private:
     model::DataCenter* dataCenter;

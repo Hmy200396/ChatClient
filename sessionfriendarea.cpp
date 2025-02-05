@@ -147,14 +147,15 @@ SessionFriendItem::SessionFriendItem(QWidget *owner, const QIcon &avatar, const 
     // 创建名字
     QLabel* nameLabel = new QLabel();
     nameLabel->setText(name);
-    nameLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 600; font-family: 'SimSun'; }");
+    nameLabel->setStyleSheet("QLabel { font-size: 18px; font-weight: 600; font-family: 'SimSun'; color: black}");
     nameLabel->setFixedHeight(35);
     nameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     // 消息预览
     messageLabel = new QLabel();
     messageLabel->setText(text);
-    //messageLabel->setStyleSheet("QLabel { font-size: 12px; font-weight: 550; font-family: 'SimSun'; }");
+    //messageLabel->setStyleSheet("QLabel { font-size: 12px; font-weight: 550; font-family: 'SimSun'; color: black;}");
+    messageLabel->setStyleSheet("QLabel{ color: black; }");
     messageLabel->setFixedHeight(35);
     messageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
@@ -330,14 +331,35 @@ ApplyItem::ApplyItem(QWidget *owner, const QString &userId, const QIcon &avatar,
     // 2. 创建两个按钮
     QPushButton* acceptBtn = new QPushButton("同意");
     QPushButton* rejectBtn = new QPushButton("拒绝");
-    acceptBtn->setStyleSheet("QPushButton { border: none }");
-    rejectBtn->setStyleSheet("QPushButton { border: none }");
+    acceptBtn->setStyleSheet("QPushButton { border: none; color: black; }");
+    rejectBtn->setStyleSheet("QPushButton { border: none; color: black; }");
+
+    // 3. 添加到布局管理器中
     layout->addWidget(acceptBtn, 1, 2, 1, 1, Qt::AlignCenter);
     layout->addWidget(rejectBtn, 1, 3, 1, 1, Qt::AlignCenter);
+
+    // 4. 添加信号槽
+    connect(acceptBtn, &QPushButton::clicked, this, &ApplyItem::acceptFriendApply);
+    connect(rejectBtn, &QPushButton::clicked, this, &ApplyItem::rejectFriendApply);
+
 }
 
 void ApplyItem::active()
 {
     // TODO 什么也不做
     LOG() << "点击 ApplyItem 触发的逻辑！ usernId = " << userId;
+}
+
+void ApplyItem::acceptFriendApply()
+{
+    // 发送网络请求，告知服务器，同意了
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    dataCenter->acceptFriendApplyAsync(this->userId);
+}
+
+void ApplyItem::rejectFriendApply()
+{
+    // 发送网络请求，告知服务器，拒绝了
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    dataCenter->rejectFriendApplyAsync(this->userId);
 }

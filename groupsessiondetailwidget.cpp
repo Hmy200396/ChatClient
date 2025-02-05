@@ -83,7 +83,7 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     groupNameTag->setText("群聊名称");
     groupNameTag->setFixedHeight(50);
     groupNameTag->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    groupNameTag->setStyleSheet("QLabel { font-weight: 700; font-size: 16px; }");
+    groupNameTag->setStyleSheet("QLabel { font-weight: 700; font-size: 16px; color: black;}");
     groupNameTag->setAlignment(Qt::AlignBottom);
     vlayout->addWidget(groupNameTag);
 
@@ -115,7 +115,7 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     exitGroupBtn->setText("退出群聊");
     exitGroupBtn->setFixedHeight(50);
     exitGroupBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    QString btnStyle = "QPushButton { border: 1px solid rgb(90, 90, 90); border-radius: 5px; background-color: transparent; color: red; font-size: 20px;}";
+    QString btnStyle = "QPushButton { border: 2px solid rgb(90, 90, 90); border-radius: 5px; background-color: transparent; color: red; font-size: 20px;}";
     btnStyle += "QPushButton:pressed { background-color: rgb(230, 230 ,230);}";
     exitGroupBtn->setStyleSheet(btnStyle);
     vlayout->addWidget(exitGroupBtn);

@@ -399,6 +399,53 @@ void DataCenter::addFriendApplyAsync(const QString &userId)
     netClient.addFriendApply(loginSessionId, userId);
 }
 
+void DataCenter::acceptFriendApplyAsync(const QString &userId)
+{
+    netClient.acceptFriendApply(loginSessionId, userId);
+}
+
+UserInfo DataCenter::removeFromApplyList(const QString &userId)
+{
+    if(applyList == nullptr)
+        return UserInfo();
+
+    for(auto it = applyList->begin(); it != applyList->end(); ++it)
+    {
+        if(it->userId == userId)
+        {
+            UserInfo toDelete = *it;
+            it = applyList->erase(it);
+            return toDelete;
+        }
+    }
+    return UserInfo();
+}
+
+bool DataCenter::isInFriendList(const QString &userId)
+{
+    if(friendList == nullptr)
+        return false;
+
+    for(auto it = friendList->begin(); it != friendList->end(); ++it)
+    {
+        if(it->userId == userId)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void DataCenter::rejectFriendApplyAsync(const QString &userId)
+{
+    netClient.rejectFriendApply(loginSessionId, userId);
+}
+
+void DataCenter::createGroupChatSessionAsync(const QList<QString> &userIdList)
+{
+    netClient.createGroupChatSession(loginSessionId, userIdList);
+}
+
 ChatSessionInfo *DataCenter::findChatSessionById(const QString &chatSessionId)
 {
     if(chatSessionList == nullptr)

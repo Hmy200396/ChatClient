@@ -136,6 +136,17 @@ public:
     // 发送好友申请
     void addFriendApplyAsync(const QString& userId);
 
+    // 发送同意好友申请操作
+    void acceptFriendApplyAsync(const QString& userId);
+    UserInfo removeFromApplyList(const QString& userId);
+    bool isInFriendList(const QString& userId);
+
+    // 拒绝好友申请操作
+    void rejectFriendApplyAsync(const QString& userId);
+
+    // 创建群聊
+    void createGroupChatSessionAsync(const QList<QString>& userIdList);
+
     /////////////////////////////////////////////////////////////////
     /// 辅助函数
     /////////////////////////////////////////////////////////////////
@@ -175,6 +186,12 @@ signals:
     void clearCurrentSession();
     void addFriendApplyDone();
     void receiveFriendApplyDone();
+    void acceptFriendApplyDone(const QString& nickName);
+    void receiveFriendProcessDone(const QString& nickName, bool agree);
+    void rejectFriendApplyDone();
+    void updateApplyListUI();
+    void createGroupChatSessionDone();
+    void receiveSessionCreateDone();
 };
 
 

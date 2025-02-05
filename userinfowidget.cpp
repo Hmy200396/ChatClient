@@ -141,7 +141,14 @@ void UserInfoWidget::initSignalSlot()
 void UserInfoWidget::clickDeleteFriendBtn()
 {
     // 1. 弹出对话框，让用户确认是否要真的删除
-    QMessageBox::StandardButton result = QMessageBox::warning(this, "确认删除", "确认删除当前好友？", QMessageBox::Ok | QMessageBox::Cancel);
+    //QMessageBox::StandardButton result = QMessageBox::warning(this, "确认删除", "确认删除当前好友？", QMessageBox::Ok | QMessageBox::Cancel);
+    QMessageBox msgBox;
+    msgBox.setWindowIcon(QIcon(":/resource/image/logo.png"));
+    msgBox.setWindowTitle("确认删除");
+    msgBox.setText("确认删除当前好友？");
+    msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+
+    int result = msgBox.exec();
     if(result != QMessageBox::Ok)
     {
         LOG()<<"删除好友取消";
