@@ -128,7 +128,7 @@ void MainWidget::initMidWindow()
     searchEdit->setFixedHeight(30);
     searchEdit->setPlaceholderText("搜索");
     searchEdit->setStyleSheet("QLineEdit { border-radius: 5px; background-color: rgb(226, 226, 226);\
-                              padding-left: 5px;}");
+                              padding-left: 5px; color: grey}");
 
     addFriendBtn = new QPushButton();
     addFriendBtn->setFixedSize(30, 30);

@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include "sessiondetailwidget.h"
 #include "debug.h"
+#include "model/datacenter.h"
 
 GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     :QDialog(parent)
@@ -83,7 +84,7 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     groupNameTag->setText("群聊名称");
     groupNameTag->setFixedHeight(50);
     groupNameTag->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    groupNameTag->setStyleSheet("QLabel { font-weight: 700; font-size: 16px; color: black;}");
+    groupNameTag->setStyleSheet("QLabel { font-weight: 700; font-size: 16px; color: black; }");
     groupNameTag->setAlignment(Qt::AlignBottom);
     vlayout->addWidget(groupNameTag);
 
@@ -95,10 +96,10 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     vlayout->addLayout(hlayout);
 
     // 6.2 创建真实群聊名字的 label
-    QLabel* groupNameLabel = new QLabel();
+    groupNameLabel = new QLabel();
     groupNameLabel->setFixedHeight(50);
     groupNameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    groupNameLabel->setStyleSheet("QLabel { font-size: 18px; }");
+    groupNameLabel->setStyleSheet("QLabel { font-size: 18px; color: black; }");
     hlayout->addWidget(groupNameLabel);
 
     // 6.3 创建 “修改按钮”
@@ -130,6 +131,9 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     }
 #endif
 
+    // 8. 从服务器加载数据
+    initData();
+
 }
 
 void GroupSessionDetailWidget::addMember(AvatarItem* avatarItem)
@@ -143,4 +147,33 @@ void GroupSessionDetailWidget::addMember(AvatarItem* avatarItem)
     }
     glayout->addWidget(avatarItem, curRow, curCol);
     ++curCol;
+}
+
+void GroupSessionDetailWidget::initData()
+{
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::getMemberListDone, this, &GroupSessionDetailWidget::initMembers);
+    dataCenter->getMemberListAsync(dataCenter->getCurrentChatSessionId());
+}
+
+void GroupSessionDetailWidget::initMembers(const QString& chatSessionId)
+{
+    // 根据刚才拿到的成员列表，把成员列表渲染到界面上
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    QList<model::UserInfo>* memberList = dataCenter->getMemberList(chatSessionId);
+    if(memberList == nullptr)
+    {
+        LOG()<<"获取成员列表为空 chatSessionId = "<<chatSessionId;
+        return;
+    }
+
+    // 遍历成员列表
+    for(const auto& u : *memberList)
+    {
+        AvatarItem* avatarItem = new AvatarItem(u.avatar, u.nickname);
+        this->addMember(avatarItem);
+    }
+
+    // 群聊名称
+    groupNameLabel->setText("新的群聊");
 }

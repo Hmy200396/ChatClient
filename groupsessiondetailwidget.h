@@ -2,6 +2,7 @@
 #define GROUPSESSIONDETAILWIDGET_H
 
 #include <QDialog>
+#include <QLabel>
 #include <QWidget>
 #include <QGridLayout>
 
@@ -16,8 +17,11 @@ public:
     GroupSessionDetailWidget(QWidget* parent);
 
     void addMember(AvatarItem* avatarItem);
+    void initData();
+    void initMembers(const QString& chatSessionId);
 private:
     QGridLayout* glayout;
+    QLabel* groupNameLabel;
 
     int curRow = 0;
     int curCol = 1;

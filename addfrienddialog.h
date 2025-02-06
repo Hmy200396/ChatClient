@@ -15,8 +15,10 @@ class FriendResultItem : public QWidget
     Q_OBJECT
 public:
     FriendResultItem(const model::UserInfo& userInfo);
+    void clickAddBtn();
 private:
     const model::UserInfo& userInfo;
+    QPushButton* addBtn;
 };
 
 ////////////////////////////////
@@ -36,6 +38,10 @@ public:
     void clear();
 
     void setSearchKey(const QString& searchKey);
+
+    void clickSearchBtn();
+    void clickSearchBtnDone();
+
 private:
     QGridLayout* layout;
     QWidget* resultContainer;

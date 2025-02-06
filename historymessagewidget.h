@@ -4,6 +4,8 @@
 #include <QDialog>
 #include <QWidget>
 #include <QGridLayout>
+#include <QRadioButton>
+#include <QLineEdit>
 #include "model/data.h"
 
 /////////////////////////////////////
@@ -33,8 +35,16 @@ public:
     HistoryMessageWidget(QWidget* parent);
     void addHistoryMessage(const model::Message& message);
     void clear();
+    void clickSearchbtn();
+    void clickSearchbtnDone();
 private:
     void initScrollArea(QGridLayout* layout);
+
+    QRadioButton* keyRadioBtn;
+    QRadioButton* timeRadioBtn;
+    QLineEdit* searchEdit;
+    QDateTimeEdit* begTimeEdit;
+    QDateTimeEdit* endTimeEdit;
 
     QWidget* container;
 };

@@ -446,6 +446,87 @@ void DataCenter::createGroupChatSessionAsync(const QList<QString> &userIdList)
     netClient.createGroupChatSession(loginSessionId, userIdList);
 }
 
+void DataCenter::getMemberListAsync(const QString &chatSessionId)
+{
+    netClient.getMemberList(loginSessionId, chatSessionId);
+}
+
+QList<UserInfo> *DataCenter::getMemberList(const QString& chatSessionId)
+{
+    if(!this->memberList->contains(chatSessionId))
+        return nullptr;
+    return &(*this->memberList)[chatSessionId];
+}
+
+void DataCenter::resetMemberList(const QString &chatSessionId, const QList<proto::UserInfo> &memberList)
+{
+    // 根据 chatSessionId，这个 key ，得到对应的 value
+    QList<UserInfo>& currentMemberList = (*this->memberList)[chatSessionId];
+    currentMemberList.clear();
+
+    for(const auto& m : memberList)
+    {
+        UserInfo userInfo;
+        userInfo.load(m);
+        currentMemberList.push_back(userInfo);
+    }
+}
+
+void DataCenter::searchUserAsync(const QString &searchKey)
+{
+    netClient.searchUser(loginSessionId, searchKey);
+}
+
+QList<UserInfo> *DataCenter::getSearchUserResult()
+{
+    return searchUserResult;
+}
+
+void DataCenter::resetSearchUserResult(const QList<proto::UserInfo> &userList)
+{
+    if(searchUserResult == nullptr)
+        searchUserResult = new QList<UserInfo>;
+
+    searchUserResult->clear();
+
+    for(const auto& u : userList)
+    {
+        UserInfo userInfo;
+        userInfo.load(u);
+        searchUserResult->push_back(userInfo);
+    }
+}
+
+void DataCenter::searchMessageAsync(const QString &searchKey)
+{
+    netClient.searchMessage(loginSessionId, this->currentChatSessionId, searchKey);
+}
+
+void DataCenter::searchMessageByTimeAsync(const QDateTime &begTime, const QDateTime &endTime)
+{
+    netClient.searchMessageByTime(loginSessionId, this->currentChatSessionId, begTime, endTime);
+}
+
+QList<Message> *DataCenter::getSearchMessageResult()
+{
+    return this->searchMessageResult;
+}
+
+void DataCenter::resetSearchMessageResult(const QList<proto::MessageInfo> &msgList)
+{
+    if(this->searchMessageResult == nullptr)
+        this->searchMessageResult = new QList<Message>();
+
+    this->searchMessageResult->clear();
+
+    for(const auto& m : msgList)
+    {
+        Message message;
+        message.load(m);
+        searchMessageResult->push_back(message);
+    }
+}
+
 ChatSessionInfo *DataCenter::findChatSessionById(const QString &chatSessionId)
 {
     if(chatSessionList == nullptr)
@@ -522,6 +603,7 @@ void DataCenter::addMessage(const Message &message)
     QList<Message>& messageList = (*recentMessages)[message.chatSessionId];
     messageList.push_back(message);
 }
+
 
 
 } // end namespace

@@ -112,6 +112,8 @@ void MessageEditArea::initSignalSlot()
     model::DataCenter* dataCenter = model::DataCenter::getInstance();
     // 1. 关联 “显示历史信息” 信号槽
     connect(showHistoryBtn, &QPushButton::clicked, this, [=](){
+        if(dataCenter->getCurrentChatSessionId().isEmpty())
+            return;
         HistoryMessageWidget* historyMessageWidget = new HistoryMessageWidget(this);
         historyMessageWidget->exec();
     });

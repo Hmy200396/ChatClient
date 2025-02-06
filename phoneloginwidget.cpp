@@ -28,14 +28,15 @@ PhoneLoginWidget::PhoneLoginWidget(bool isLoginMode, QWidget *parent)
     titleLabel->setAlignment(Qt::AlignCenter);
     titleLabel->setFixedHeight(50);
     titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    titleLabel->setStyleSheet("QLabel { font-size: 40px; font-weight: 600; }");
+    titleLabel->setStyleSheet("QLabel { font-size: 40px; font-weight: 600; color: black; }");
 
     // 4. 创建手机号码输入框
     QLineEdit* phoneEdit = new QLineEdit();
     phoneEdit->setPlaceholderText("输入手机号码");
     phoneEdit->setFixedHeight(40);
     phoneEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    QString editStyle = "QLineEdit { border: none; border-radius: 10px; font-size: 20px; background-color: rgb(240, 240, 240); padding-left: 5px; }";
+    QString editStyle = "QLineEdit { border: none; border-radius: 10px; font-size: 15px; background-color: rgb(240, 240, 240); padding-left: 5px; color: black; }"
+                        "QLineEdit::placeholder { color: gray; }";
     phoneEdit->setStyleSheet(editStyle);
 
     // 5. 创建验证码输入框
@@ -50,7 +51,7 @@ PhoneLoginWidget::PhoneLoginWidget(bool isLoginMode, QWidget *parent)
     sendVerifyCodeBtn->setFixedSize(100, 40);
     sendVerifyCodeBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     sendVerifyCodeBtn->setText("发送验证码");
-    QString btnWhiteStyle = "QPushButton { border: none; border-radius: 10px; background-color: transparent; }";
+    QString btnWhiteStyle = "QPushButton { border: none; border-radius: 10px; background-color: transparent; color: black; }";
     btnWhiteStyle += "QPushButton:pressed { background-color: rgb(240, 240, 240); }";
     sendVerifyCodeBtn->setStyleSheet(btnWhiteStyle);
 

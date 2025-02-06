@@ -7,6 +7,7 @@
 #include <QScrollBar>
 #include <QLabel>
 #include "debug.h"
+#include "model/datacenter.h"
 
 ////////////////////////////////
 /// 表示一个好友搜索的结果
@@ -36,7 +37,7 @@ FriendResultItem::FriendResultItem(const model::UserInfo &userInfo)
     nameLabel->setFixedHeight(35);
     nameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     nameLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    nameLabel->setStyleSheet("QLabel { font-size: 16px; font-weight: 700; }");
+    nameLabel->setStyleSheet("QLabel { font-size: 16px; font-weight: 700; color: black; }");
     nameLabel->setText(userInfo.nickname);
 
     // 5. 创建个性签名
@@ -44,11 +45,11 @@ FriendResultItem::FriendResultItem(const model::UserInfo &userInfo)
     descLabel->setFixedHeight(35);
     descLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     descLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    descLabel->setStyleSheet("QLabel { font-size: 14px; }");
+    descLabel->setStyleSheet("QLabel { font-size: 14px; color: black; }");
     descLabel->setText(userInfo.description);
 
     // 6. 创建添加好友按钮
-    QPushButton* addBtn = new QPushButton();
+    addBtn = new QPushButton();
     addBtn->setFixedSize(100, 40);
     addBtn->setText("添加好友");
     QString btnStyle = "QPushButton { border:none; background-color: rgb(137, 217, 97); color: rgb(255, 255, 255); border-radius: 10px; }";
@@ -60,6 +61,21 @@ FriendResultItem::FriendResultItem(const model::UserInfo &userInfo)
     layout->addWidget(nameLabel, 0, 1);
     layout->addWidget(descLabel, 1, 1);
     layout->addWidget(addBtn, 0, 2, 2, 1);
+
+    // 8. 连接信号槽
+    connect(addBtn, &QPushButton::clicked, this, &FriendResultItem::clickAddBtn);
+}
+
+void FriendResultItem::clickAddBtn()
+{
+    // 1. 发送好友申请
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    dataCenter->addFriendApplyAsync(userInfo.userId);
+
+    // 2. 设置按钮为禁用状态
+    addBtn->setEnabled(false);
+    addBtn->setText("已申请");
+    addBtn->setStyleSheet("QPushButton{ border:none; background-color: rgb(89, 180, 180); color: rgb(255, 255, 255); border-radius: 10px; }");
 }
 
 
@@ -87,7 +103,8 @@ AddFriendDialog::AddFriendDialog(QWidget* parent)
     searchEdit = new QLineEdit();
     searchEdit->setFixedHeight(50);
     searchEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    QString editStyle = "QLineEdit { border:none; border-radius: 10px; font-size: 16px; background-color: rgb(240, 240 ,240); padding-left: 5px}";
+    QString editStyle = "QLineEdit { border:none; border-radius: 10px; font-size: 16px; background-color: rgb(240, 240 ,240); padding-left: 5px; color: black}"
+                        "QLineEdit::placeholder { color: gray; }";
     searchEdit->setStyleSheet(editStyle);
     searchEdit->setPlaceholderText("按手机号/用户序号/昵称搜索");
     layout->addWidget(searchEdit, 0, 0, 1, 8);
@@ -107,7 +124,7 @@ AddFriendDialog::AddFriendDialog(QWidget* parent)
     // 5. 添加滚动区域
     initResultArea();
 
-    // 6. 构造数据逻辑
+    // 6构造数据逻辑
 #if TEST_UI
     for(int i = 0; i < 20; ++i)
     {
@@ -119,6 +136,9 @@ AddFriendDialog::AddFriendDialog(QWidget* parent)
         addResult(*userInfo);
     }
 #endif
+
+    // 6. 连接信号槽
+    connect(searchbtn, &QPushButton::clicked, this, &AddFriendDialog::clickSearchBtn);
 }
 
 void AddFriendDialog::initResultArea()
@@ -200,6 +220,35 @@ void AddFriendDialog::clear()
 void AddFriendDialog::setSearchKey(const QString &searchKey)
 {
     searchEdit->setText(searchKey);
+}
+
+void AddFriendDialog::clickSearchBtn()
+{
+    // 1. 拿到输入框的内容
+    const QString& text = searchEdit->text();
+    if(text.isEmpty())
+        return;
+
+    // 2. 给服务器发起请求
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::searchUserDone, this, &AddFriendDialog::clickSearchBtnDone, Qt::UniqueConnection);
+    dataCenter->searchUserAsync(text);
+}
+
+void AddFriendDialog::clickSearchBtnDone()
+{
+    // 1. 拿到 DataCenter 中的搜索结果
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    QList<model::UserInfo>* searchResult = dataCenter->getSearchUserResult();
+    if(searchResult == nullptr)
+        return;
+
+    this->clear();
+
+    for(const auto& u : *searchResult)
+    {
+        this->addResult(u);
+    }
 }
 
 

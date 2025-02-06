@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include "verifycodewidget.h"
 
 
 LoginWidget::LoginWidget(QWidget *parent)
@@ -29,14 +30,15 @@ LoginWidget::LoginWidget(QWidget *parent)
     titleLabel->setAlignment(Qt::AlignCenter);
     titleLabel->setFixedHeight(50);
     titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    titleLabel->setStyleSheet("QLabel { font-size: 40px; font-weight: 600; }");
+    titleLabel->setStyleSheet("QLabel { font-size: 40px; font-weight: 600; color: black; }");
 
     // 4. 创建用户名输入框
     QLineEdit* usernameEdit = new QLineEdit();
     usernameEdit->setFixedHeight(40);
     usernameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     usernameEdit->setPlaceholderText("输入用户名");
-    QString editStyle = "QLineEdit { border: none; border-radius: 10px; font-size: 20px; background-color: rgb(240, 240, 240); padding-left: 5px; }";
+    QString editStyle = "QLineEdit { border: none; border-radius: 10px; font-size: 15px; background-color: rgb(240, 240, 240); padding-left: 5px; color: black; }"
+                        "QLineEdit::placeholder { color: gray; }";
     usernameEdit->setStyleSheet(editStyle);
 
     // 5. 创建密码输入框
@@ -55,9 +57,10 @@ LoginWidget::LoginWidget(QWidget *parent)
     verifyCodeEdit->setStyleSheet(editStyle);
 
     // 7. 创建显示验证码图片的控件
-    QPushButton* verifyCodeWidget = new QPushButton();
-    verifyCodeWidget->setText("验证码");
-    verifyCodeWidget->setStyleSheet("QPushButton { border: none; }");
+    // QPushButton* verifyCodeWidget = new QPushButton();
+    // verifyCodeWidget->setText("验证码");
+    // verifyCodeWidget->setStyleSheet("QPushButton { border: none; color: black; }");
+    VerifyCodeWidget* verifyCodeWidget = new VerifyCodeWidget(this);
 
     // 8. 创建登录按钮
     QPushButton* submitBtn = new QPushButton();
@@ -72,7 +75,7 @@ LoginWidget::LoginWidget(QWidget *parent)
     QPushButton* phoneModeBtn = new QPushButton();
     phoneModeBtn->setFixedSize(100 ,40);
     phoneModeBtn->setText("手机号登录");
-    QString btnWhiteStyle = "QPushButton { border: none; border-radius: 10px; background-color: transparent; }";
+    QString btnWhiteStyle = "QPushButton { border: none; border-radius: 10px; background-color: transparent; color: black; }";
     btnWhiteStyle += "QPushButton:pressed { background-color: rgb(240, 240, 240); }";
     phoneModeBtn->setStyleSheet(btnWhiteStyle);
 

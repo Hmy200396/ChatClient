@@ -417,7 +417,7 @@ void NetClient::getRecentMessageList(const QString &loginSessionId, const QStrin
             emit dataCenter->getRecentMessageListDoneNoUI(chatSessionId);
 
         // e) 打印日志
-        LOG() << "[获取好友申请列表] 处理响应 requestId = " << req.requestId();
+        LOG() << "[获取最近消息] 处理响应 requestId = " << req.requestId();
     });
 }
 
@@ -929,6 +929,167 @@ void NetClient::createGroupChatSession(const QString &loginSessionId, const QLis
 
         //e) 打印日志
         LOG() << "[创建群聊会话] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::getMemberList(const QString &loginSessionId, const QString &chatSessionId)
+{
+    // 获取消息会话成员列表             /service/friend/get_chat_session_member
+    // 1. 构造请求 body
+    proto::GetChatSessionMemberReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setChatSessionId(chatSessionId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[获取群聊会话成员列表] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId()<< ", chatSessionId = " << pbReq.chatSessionId();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/get_chat_session_member", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::GetChatSessionMemberRsp> pbResp = this->handleHttpResponse<proto::GetChatSessionMemberRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[获取群聊会话成员列表] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        dataCenter->resetMemberList(chatSessionId, pbResp->memberInfoList());
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->getMemberListDone(chatSessionId);
+
+        //e) 打印日志
+        LOG() << "[获取群聊会话成员列表] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::searchUser(const QString &loginSessionId, const QString &searchKey)
+{
+    // 搜索用户             /service/friend/search_friend
+    // 1. 构造请求 body
+    proto::FriendSearchReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setSearchKey(searchKey);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[搜索用户] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId()<< ", searchKey = " << pbReq.searchKey();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/search_friend", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::FriendSearchRsp> pbResp = this->handleHttpResponse<proto::FriendSearchRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[搜索用户] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        dataCenter->resetSearchUserResult(pbResp->userInfo());
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->searchUserDone();
+
+        //e) 打印日志
+        LOG() << "[搜索用户] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::searchMessage(const QString &loginSessionId, const QString &chatSessionId, const QString &searchKey)
+{
+    // 搜索历史消息                    /service/message_storage/search_history
+    // 1. 构造请求 body
+    proto::MsgSearchReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setChatSessionId(chatSessionId);
+    pbReq.setSearchKey(searchKey);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[按关键词搜索历史消息] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId()
+         << ", chatSessionId = " << pbReq.chatSessionId() << ", searchKey = " << pbReq.searchKey();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/message_storage/search_history", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::MsgSearchRsp> pbResp = this->handleHttpResponse<proto::MsgSearchRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[按关键词搜索历史消息] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        dataCenter->resetSearchMessageResult(pbResp->msgList());
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->searchMessageDone();
+
+        //e) 打印日志
+        LOG() << "[按关键词搜索历史消息] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::searchMessageByTime(const QString &loginSessionId, const QString &chatSessionId, const QDateTime &begTime, const QDateTime &endTime)
+{
+    // 获取历史消息/离线消息列表        /service/message_storage/get_history
+    // 1. 构造请求 body
+    proto::GetHistoryMsgReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setChatSessionId(chatSessionId);
+    pbReq.setStartTime(begTime.toSecsSinceEpoch());
+    pbReq.setOverTime(endTime.toSecsSinceEpoch());
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[按时间搜索历史消息] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId()
+          << ", chatSessionId = " << pbReq.chatSessionId() << ", begTime = " << begTime << ", endTime = " << endTime;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/message_storage/get_history", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::GetHistoryMsgRsp> pbResp = this->handleHttpResponse<proto::GetHistoryMsgRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[按时间搜索历史消息] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        dataCenter->resetSearchMessageResult(pbResp->msgList());
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->searchMessageDone();
+
+        //e) 打印日志
+        LOG() << "[按时间搜索历史消息] 响应完毕！ requestId = " << pbResp->requestId();
     });
 }
 

@@ -147,6 +147,22 @@ public:
     // 创建群聊
     void createGroupChatSessionAsync(const QList<QString>& userIdList);
 
+    // 获取群组的成员列表
+    void getMemberListAsync(const QString& chatSessionId);
+    QList<UserInfo>* getMemberList(const QString& chatSessionId);
+    void resetMemberList(const QString& chatSessionId, const QList<proto::UserInfo>& memberList);
+
+    // 搜索用户
+    void searchUserAsync(const QString& searchKey);
+    QList<UserInfo>* getSearchUserResult();
+    void resetSearchUserResult(const QList<proto::UserInfo>& userList);
+
+    // 搜索历史消息
+    void searchMessageAsync(const QString& searchKey);
+    void searchMessageByTimeAsync(const QDateTime& begTime, const QDateTime& endTime);
+    QList<Message>* getSearchMessageResult();
+    void resetSearchMessageResult(const QList<proto::MessageInfo>& msgList);
+
     /////////////////////////////////////////////////////////////////
     /// 辅助函数
     /////////////////////////////////////////////////////////////////
@@ -192,6 +208,9 @@ signals:
     void updateApplyListUI();
     void createGroupChatSessionDone();
     void receiveSessionCreateDone();
+    void getMemberListDone(const QString& chatSessionId);
+    void searchUserDone();
+    void searchMessageDone();
 };
 
 

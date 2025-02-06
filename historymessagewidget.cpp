@@ -10,6 +10,8 @@
 #include <QFrame>
 #include <QPainter>
 #include <QStyleOption>
+#include "model/datacenter.h"
+#include "toast.h"
 
 /////////////////////////////////////
 /// 表示一个历史消息元素
@@ -41,7 +43,7 @@ HistoryItem *HistoryItem::makeHistoryItem(const model::Message &message)
     nameLabel->setFixedHeight(40);
     nameLabel->setAlignment(Qt::AlignTop);
     nameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    //nameLabel->setStyleSheet("QLabel { background-color: transparent; }");
+    nameLabel->setStyleSheet("QLabel { color: black; }");
 
     // 5. 创建消息内容
     QWidget* contentWidget = nullptr;
@@ -56,6 +58,7 @@ HistoryItem *HistoryItem::makeHistoryItem(const model::Message &message)
         label->setText(QString(message.content));
         label->setAlignment(Qt::AlignTop);
         label->adjustSize(); // 设置让 label 能够自动调整大小
+        label->setStyleSheet("QLabel { color: black; }");
         contentWidget = label;
     }
     else if(message.messageType == model::IMAGE_TYPE)
@@ -130,21 +133,23 @@ HistoryMessageWidget::HistoryMessageWidget(QWidget* parent)
     this->setLayout(layout);
 
     // 3. 创建单选按钮
-    QRadioButton* keyRadioBtn = new QRadioButton();
-    QRadioButton* timeRadioBtn = new QRadioButton();
+    keyRadioBtn = new QRadioButton();
+    timeRadioBtn = new QRadioButton();
     keyRadioBtn->setText("按关键词查询");
     timeRadioBtn->setText("按时间查询");
+    keyRadioBtn->setStyleSheet("QRadioButton { color: black; }");
+    timeRadioBtn->setStyleSheet("QRadioButton { color: black; }");
     // 默认按照关键词查询
     keyRadioBtn->setChecked(true);
     layout->addWidget(keyRadioBtn, 0, 0, 1, 2);
     layout->addWidget(timeRadioBtn, 0, 2, 1, 2);
 
     // 4. 创建搜索框
-    QLineEdit* searchEdit = new QLineEdit();
+    searchEdit = new QLineEdit();
     searchEdit->setFixedHeight(50);
     searchEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     searchEdit->setPlaceholderText("要搜索的关键词");
-    searchEdit->setStyleSheet("QLineEdit { border: none; border-radius: 10px; background-color: rgb(240, 240, 240); font-size: 16px; padding-left:10px; }");
+    searchEdit->setStyleSheet("QLineEdit { border: none; border-radius: 10px; background-color: rgb(240, 240, 240); font-size: 16px; padding-left:10px; color: black; }");
     layout->addWidget(searchEdit, 1, 0, 1, 8);
 
     // 5. 创建搜索按钮
@@ -161,10 +166,14 @@ HistoryMessageWidget::HistoryMessageWidget(QWidget* parent)
     // 6. 创建时间相关的部分控件
     QLabel* begTag = new QLabel();
     begTag->setText("开始时间");
+    begTag->setStyleSheet("QLabel { color:black; }");
     QLabel* endTag = new QLabel();
     endTag->setText("结束时间");
-    QDateTimeEdit* begTimeEdit = new QDateTimeEdit();
-    QDateTimeEdit* endTimeEdit = new QDateTimeEdit();
+    endTag->setStyleSheet("QLabel { color:black; }");
+    begTimeEdit = new QDateTimeEdit();
+    endTimeEdit = new QDateTimeEdit();
+    begTimeEdit->setStyleSheet("QDateTimeEdit { color:black; background-color: rgb(250, 250, 250); }");
+    endTimeEdit->setStyleSheet("QDateTimeEdit { color:black; background-color: rgb(250, 250, 250); }");
     begTimeEdit->setFixedHeight(40);
     endTimeEdit->setFixedHeight(40);
     begTag->hide();
@@ -206,9 +215,12 @@ HistoryMessageWidget::HistoryMessageWidget(QWidget* parent)
         endTag->show();
         endTimeEdit->show();
     });
+    connect(keyRadioBtn, &QRadioButton::clicked, this, [=](){this->clear();});
+    connect(timeRadioBtn, &QRadioButton::clicked, this, [=](){this->clear();});
+    connect(searchBtn, &QPushButton::clicked, this, &HistoryMessageWidget::clickSearchbtn);
 
     // 构造测试数据
-#ifdef TEST_UI
+#if TEST_UI
     QString str;
     for(int i = 0; i < 30; ++i)
     {
@@ -244,6 +256,54 @@ void HistoryMessageWidget::clear()
             continue;
         layout->removeWidget(w);
         w->deleteLater();
+    }
+}
+
+void HistoryMessageWidget::clickSearchbtn()
+{
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::searchMessageDone, this, &HistoryMessageWidget::clickSearchbtnDone, Qt::UniqueConnection);
+    // 此处需要根据单选框的选择情况，执行不同的的逻辑
+    if(keyRadioBtn->isChecked())
+    {
+        // 按照关键词搜索
+        // 获取到输入框关键词
+        const QString& searchKey = searchEdit->text();
+        if(searchKey.isEmpty())
+            return;
+
+        dataCenter->searchMessageAsync(searchKey);
+    }
+    else
+    {
+        // 按照时间搜索
+        // 获取时间
+        QDateTime begTime = begTimeEdit->dateTime();
+        QDateTime endTime = endTimeEdit->dateTime();
+        if(begTime >= endTime)
+        {
+            Toast::showMessage("时间错误！开始时间大于等于结束时间");
+            return;
+        }
+
+        dataCenter->searchMessageByTimeAsync(begTime, endTime);
+    }
+}
+
+void HistoryMessageWidget::clickSearchbtnDone()
+{
+    // 1. 从 dataCenter 中拿到消息搜索的结果列表
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    QList<model::Message>* messageResult = dataCenter->getSearchMessageResult();
+    if(messageResult == nullptr)
+        return;
+
+    // 2. 把结果列表的数据。显示到界面上
+    this->clear();
+
+    for(const model::Message& m : *messageResult)
+    {
+        this->addHistoryMessage(m);
     }
 }
 
