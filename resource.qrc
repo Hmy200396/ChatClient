@@ -24,5 +24,6 @@
         <file>resource/image/cross.png</file>
         <file>resource/image/modify.png</file>
         <file>resource/image/unchecked.png</file>
+        <file>resource/image/loading.png</file>
     </qresource>
 </RCC>

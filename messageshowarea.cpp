@@ -12,6 +12,9 @@
 #include <QPainterPath>
 #include <QDebug>
 #include <QTimer>
+#include <QDesktopServices>
+#include <QDir>
+#include <QMessageBox>
 ///////////////////////////////////////
 /// 表示一个消息展示区
 ///////////////////////////////////////
@@ -78,10 +81,10 @@ MessageShowArea::MessageShowArea()
 }
 
 // 尾插
-void MessageShowArea::addMessage(bool isLeft, const model::Message &message)
+void MessageShowArea::addMessage(bool isLeft, const model::Message &message, const QString& path)
 {
     // 构造 MessageItem，添加到布局管理器
-    MessageItem* messageItem = MessageItem::makeMessageItem(isLeft, message);
+    MessageItem* messageItem = MessageItem::makeMessageItem(isLeft, message, path);
     container->layout()->addWidget(messageItem);
 }
 
@@ -124,7 +127,8 @@ void MessageShowArea::scrollToEnd()
         timer->stop();
         timer->deleteLater();
     });
-    timer->start(500);
+    timer->start(200);
+
 }
 
 ///////////////////////////////////////
@@ -136,7 +140,7 @@ MessageItem::MessageItem(bool isLeft)
 
 }
 
-MessageItem *MessageItem::makeMessageItem(bool isLeft, const model::Message &message)
+MessageItem *MessageItem::makeMessageItem(bool isLeft, const model::Message &message, const QString& path)
 {
     // 1. 创建对象和布局管理器
     MessageItem* messageItem = new MessageItem(isLeft);
@@ -183,10 +187,10 @@ MessageItem *MessageItem::makeMessageItem(bool isLeft, const model::Message &mes
         contentWidget = makeTextMessageItem(isLeft, message.content);
         break;
     case model::IMAGE_TYPE:
-        contentWidget = makeImageMessageItem();
+        contentWidget = makeImageMessageItem(isLeft, message.fileId, message.content);
         break;
     case model::FILE_TYPE:
-        contentWidget = makeFileMessageItem();
+        contentWidget = makeFileMessageItem(isLeft, message.fileId, message.fileName, path);
         break;
     case model::SPEECH_TYPE:
         contentWidget = makeSpeechMessageItem();
@@ -233,14 +237,16 @@ QWidget *MessageItem::makeTextMessageItem(bool isLeft, const QString& text)
     return messageContentLabel;
 }
 
-QWidget *MessageItem::makeImageMessageItem()
+QWidget *MessageItem::makeImageMessageItem(bool isLeft, const QString& fileId, const QByteArray& content)
 {
-    return nullptr;
+    MessageImageLabel* messageImageLabel = new MessageImageLabel(fileId, content, isLeft);
+    return messageImageLabel;
 }
 
-QWidget *MessageItem::makeFileMessageItem()
+QWidget *MessageItem::makeFileMessageItem(bool isLeft, const QString &fileId, const QString &fileName, const QString& filePath)
 {
-    return nullptr;
+    MessageFileLabel* messageFileLabel = new MessageFileLabel(fileId, fileName, filePath, isLeft);
+    return messageFileLabel;
 }
 
 QWidget *MessageItem::makeSpeechMessageItem()
@@ -272,22 +278,33 @@ void MessageContentLabel::paintEvent(QPaintEvent *event)
     if(!object->isWidgetType())
         return;
     QWidget* parent = dynamic_cast<QWidget*>(object);
-    int width = parent->width() * 0.6;
+    const int maxWidth = parent->width() * 0.6;
 
     // 2. 计算当前文本，如果是一行放置需要多宽
     QFontMetrics metrics(this->label->font());
     int totalWidth = metrics.horizontalAdvance(this->label->text());
 
-    // 3. 计算行数
-    int rows = (totalWidth / (width - 40)) + 1;
-    if(rows == 1)
-    {
-        // 只有一行 40为左右各20边距
-        width = totalWidth + 40;
-    }
+    // // 3. 计算行数
+    // int width = maxWidth;
+    // int rows = (totalWidth / (maxWidth - 40)) + 1;
+    // if(rows == 1)
+    // {
+    //     // 只有一行 40为左右各20边距
+    //     width = totalWidth + 40;
+    // }
 
-    // 4. 根据行数，计算得到的高度  20为上下各10边距
-    int height = rows * (this->label->font().pixelSize() * 1.2) + 20;
+    // // 4. 根据行数，计算得到的高度  20为上下各10边距
+    // int height = rows * (this->label->font().pixelSize() * 1.2) + 20;
+
+    // 计算宽度：短文本不换行，长文本换行
+    bool needWrap = totalWidth > (maxWidth - 40);
+    int width = needWrap ? (maxWidth) : (totalWidth + 40);
+
+    // 设置 QLabel 的宽度和换行
+    this->label->setWordWrap(needWrap);
+    this->label->setFixedWidth(width); // 预留内边距
+    this->label->adjustSize(); // 计算 QLabel 高度
+    int height = this->label->height() + 20;
 
     // 5. 绘制圆角矩形和箭头
     QPainter painter(this);
@@ -327,4 +344,272 @@ void MessageContentLabel::paintEvent(QPaintEvent *event)
 
     // 6. 重新设置父元素高度，确保父元素足够高，能够容纳下上述绘制区域
     parent->setFixedHeight(height + 50);
+}
+
+///////////////////////////////////////
+/// 创建类表示 “图片消息” 正文部分
+///////////////////////////////////////
+MessageImageLabel::MessageImageLabel(const QString &fileId, const QByteArray &content, bool isLeft)
+    :fileId(fileId),content(content),isLeft(isLeft)
+{
+    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    imageBtn = new QPushButton(this);
+    imageBtn->setStyleSheet("QPushButton { border: none; }");
+
+    if(content.isEmpty())
+    {
+        // 此处这个控件，是针对 “从服务器拿到图片消息” 这种情况
+        // 拿着 fileId，去服务器获取图片
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        connect(dataCenter, &model::DataCenter::getSingleFileDone, this, &MessageImageLabel::updateUI);
+        dataCenter->getSingleFileAsync(fileId);
+    }
+}
+
+void MessageImageLabel::updateUI(const QString &fileId, const QByteArray &content)
+{
+    if(this->fileId != fileId)
+        return;
+
+    // 保存图片内容
+    this->content = content;
+
+    // 绘制图片到界面上
+    this->update();
+}
+
+void MessageImageLabel::paintEvent(QPaintEvent *event)
+{
+    // 1. 先拿到该元素的父元素，看父元素的宽度是多少
+    //    显示的图片宽度的上限 父元素宽度的30%
+    QObject* object = this->parent();
+    if(!object->isWidgetType())
+        return;
+
+    QWidget* parent = dynamic_cast<QWidget*>(object);
+    int width = parent->width() * 0.3;
+
+    // 2. 加载二进制数据为图片对象
+    QImage image;
+    if(content.isEmpty())
+    {
+        // 此时图片响应数据还没回来
+        // 先拿默认图片显示
+        QByteArray tmpContent = model::loadFileToByteArray(":/resource/image/loading.png");
+        image.loadFromData(tmpContent);
+    }
+    else
+    {
+        image.loadFromData(content);
+    }
+
+    // 3. 针对图片进行缩放
+    int height = 0;
+    if(image.width() > width)
+    {
+        // 图片太宽
+        // 等比例缩放
+        height = ((double)image.height() / image.width()) * width;
+    }
+    else
+    {
+        width = image.width();
+        height = image.height();
+    }
+
+    QPixmap pixmap = QPixmap::fromImage(image);
+    imageBtn->setFixedSize(width, height);
+    imageBtn->setIconSize(QSize(width, height));
+    imageBtn->setIcon(QIcon(pixmap));
+
+    // 4. 重新设置父元素高度，确保父元素足够高，能够容纳下上述绘制区域
+    parent->setFixedHeight(height + 50);
+
+    // 5. 确定按钮所在的位置
+    if(isLeft)
+    {
+        // 左侧消息
+        this->imageBtn->setGeometry(10, 0, width, height);
+    }
+    else
+    {
+        // 右侧消息
+        int leftPos = this->width() - width - 10;
+        this->imageBtn->setGeometry(leftPos, 0, width, height);
+    }
+}
+
+MessageFileLabel::MessageFileLabel(const QString &fileId, const QString &fileName, const QString& filePath, bool isLeft)
+    :isLeft(isLeft), fileId(fileId), fileName(fileName), filePath(filePath)
+{
+    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    QFont font;
+    font.setFamily("微软雅黑");
+    font.setPixelSize(16);
+
+    this->label = new QLabel(this);
+    this->label->setFont(font);
+    this->label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    this->label->setWordWrap(true); // 文本自动换行
+    this->label->setStyleSheet("QLabel { padding: 0 10px; line-height: 1.2; color: rgb(35, 35, 35); background-color: transparent}");
+    if(isLeft)
+    {
+        this->label->setText("[文件][未下载]"+fileName);
+    }
+    else
+    {
+        this->label->setText("[文件][已发送]"+fileName);
+    }
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::getSingleFileDone, this, &MessageFileLabel::saveFile);
+    connect(dataCenter, &model::DataCenter::getSingleFileFail, this, [=](const QString& fileId, const QString& reason){
+        if(this->fileId != fileId)
+            return;
+        this->label->setText("[文件][下载失败]"+reason);
+    });
+}
+
+void MessageFileLabel::mousePressEvent(QMouseEvent *event)
+{
+    if(this->filePath.isEmpty())
+    {
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        this->label->setText("[文件][正在下载]"+fileName);
+        dataCenter->getSingleFileAsync(this->fileId);
+    }
+    else
+    {
+        // 获取文件所在文件夹的路径
+        QFileInfo fileInfo(this->filePath);
+        if(!fileInfo.exists())
+        {
+            LOG()<<"文件不存在："<<filePath;
+            filePath.clear();
+
+            QMessageBox msgBox;
+            msgBox.setWindowIcon(QIcon(":/resource/image/logo.png"));
+            msgBox.setWindowTitle("文件不存在");
+            msgBox.setText("文件不存在,是否重新下载？");
+            msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+            int result = msgBox.exec();
+            if(result == QMessageBox::Ok)
+            {
+                LOG()<<"重新下载"<<fileName;
+                this->label->setText("[文件][正在下载]"+fileName);
+                model::DataCenter* dataCenter = model::DataCenter::getInstance();
+                dataCenter->getSingleFileAsync(this->fileId);
+            }
+            else
+            {
+                this->label->setText("[文件][已失效]"+fileName);
+            }
+            return;
+        }
+
+        QString folderPath = fileInfo.dir().absolutePath();
+
+        // 使用QDesktopServices打开文件夹
+        QUrl folderUrl = QUrl::fromLocalFile(folderPath);
+        if (!QDesktopServices::openUrl(folderUrl))
+        {
+            LOG() << "Failed to open folder:" << folderPath;
+        }
+    }
+}
+
+void MessageFileLabel::paintEvent(QPaintEvent *event)
+{
+    // 1. 获取父元素的宽度
+    QObject* object = this->parent();
+    if(!object->isWidgetType())
+        return;
+    QWidget* parent = dynamic_cast<QWidget*>(object);
+    const int maxWidth = parent->width() * 0.6;
+
+    // 2. 计算当前文本，如果是一行放置需要多宽
+    QFontMetrics metrics(this->label->font());
+    int totalWidth = metrics.horizontalAdvance(this->label->text());
+
+    // // 3. 计算行数
+    // int width = maxWidth;
+    // int rows = (totalWidth / (maxWidth - 40)) + 1;
+    // if(rows == 1)
+    // {
+    //     // 只有一行 40为左右各20边距
+    //     width = totalWidth + 40;
+    // }
+
+    // // 4. 根据行数，计算得到的高度  20为上下各10边距
+    // int height = rows * (this->label->font().pixelSize() * 1.2) + 20;
+
+    // 计算宽度：短文本不换行，长文本换行
+    bool needWrap = totalWidth > (maxWidth - 40);
+    int width = needWrap ? (maxWidth) : (totalWidth + 40);
+
+    // 设置 QLabel 的宽度和换行
+    this->label->setWordWrap(needWrap);
+    this->label->setFixedWidth(width); // 预留内边距
+    this->label->adjustSize(); // 计算 QLabel 高度
+    int height = this->label->height() + 20;
+
+    // 5. 绘制圆角矩形和箭头
+    QPainter painter(this);
+    QPainterPath path;
+    // 设置 抗锯齿
+    painter.setRenderHint(QPainter::Antialiasing);
+    if(isLeft)
+    {
+        painter.setPen((QPen(QColor(255, 255 ,255))));
+        painter.setBrush((QColor(255, 255 ,255)));
+
+        painter.drawRoundedRect(10, 0, width, height, 10, 10);
+        path.moveTo(10, 15);
+        path.lineTo(0, 20);
+        path.lineTo(10, 25);
+        path.closeSubpath();
+        painter.drawPath(path);
+
+        this->label->setGeometry(10, 0, width, height);
+    }
+    else
+    {
+        painter.setPen((QPen(QColor(137, 217 ,97))));
+        painter.setBrush((QColor(137, 217 ,97)));
+
+        int leftPos = this->width() - width - 10;
+        int rightPos = this->width() - 10;
+        painter.drawRoundedRect(leftPos, 0, width, height, 10, 10);
+        path.moveTo(rightPos, 15);
+        path.lineTo(rightPos + 10, 20);
+        path.lineTo(rightPos, 25);
+        path.closeSubpath();
+        painter.drawPath(path);
+
+        this->label->setGeometry(leftPos, 0, width, height);
+    }
+
+    // 6. 重新设置父元素高度，确保父元素足够高，能够容纳下上述绘制区域
+    parent->setFixedHeight(height + 50);
+}
+
+void MessageFileLabel::saveFile(const QString &fileId, const QByteArray &content)
+{
+    if(this->fileId != fileId)
+        return;
+
+    QString path = model::getDownLoadPath() + fileName;
+
+
+    if(model::writeByteArrayToFile(path, content))
+    {
+        this->filePath = path;
+        this->label->setText("[文件][已下载]"+fileName);
+        this->update();
+    }
+    else
+    {
+        this->label->setText("[文件][保存失败]"+path);
+    }
 }

@@ -210,6 +210,8 @@ void MainWidget::initRightWindow()
 void MainWidget::initSignalSlot()
 {
     model::DataCenter* dataCenter = model::DataCenter::getInstance();
+
+    // 初始化 webSocket
     dataCenter->initWebSocket();
     //dataCenter->ping();
 

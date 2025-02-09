@@ -7,7 +7,6 @@
 
 namespace model{
 
-
 DataCenter* DataCenter::instance = nullptr;
 DataCenter *DataCenter::getInstance()
 {
@@ -39,6 +38,7 @@ DataCenter::DataCenter()
     unreadMessageCount = new QHash<QString, int>();
 
     // 加载数据
+    initDataFile();
     loadDataFile();
 }
 
@@ -47,12 +47,18 @@ void DataCenter::initDataFile()
     // 构造出文件路径，使用 appData 存储文件
     QString basePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QString filePath = basePath + "/ChatClient.json";
+    downLoadPath = basePath + "/downLoad/";
     LOG() << "filePath = " << filePath;
+    LOG() << "downLoadPath = " << downLoadPath;
 
     QDir dir;
     if(!dir.exists(basePath))
     {
         dir.mkpath(basePath);
+    }
+    if(!dir.exists(downLoadPath))
+    {
+        dir.mkpath(downLoadPath);
     }
 
     // 创建文件
@@ -149,6 +155,10 @@ void DataCenter::loadDataFile()
     }
 
     file.close();
+}
+QString getDownLoadPath()
+{
+    return downLoadPath;
 }
 
 void DataCenter::clearUnread(const QString &chatSessionId)
@@ -293,9 +303,19 @@ void DataCenter::resetRecentMessageList(const QString &chatSessionId, std::share
     }
 }
 
-void DataCenter::senTextMessageAsync(const QString &chatSessionId, const QString &content)
+void DataCenter::sendTextMessageAsync(const QString &chatSessionId, const QString &content)
 {
     netClient.sendMessage(loginSessionId, chatSessionId, MessageType::TEXT_TYPE, content.toUtf8(), "");
+}
+
+void DataCenter::sendImageMessageAsync(const QString &chatSessionId, const QByteArray &content)
+{
+    netClient.sendMessage(loginSessionId, chatSessionId, IMAGE_TYPE, content, "");
+}
+
+void DataCenter::sendFileMessageAsync(const QString &chatSessionId, const QString& path, const QString &fileName, const QByteArray &content)
+{
+    netClient.sendMessage(loginSessionId, chatSessionId, FILE_TYPE, content, fileName, path);
 }
 
 void DataCenter::changeNicknameAsync(const QString &nickname)
@@ -525,6 +545,39 @@ void DataCenter::resetSearchMessageResult(const QList<proto::MessageInfo> &msgLi
         message.load(m);
         searchMessageResult->push_back(message);
     }
+}
+
+void DataCenter::userLoginAsync(const QString &username, const QString &password)
+{
+    netClient.userLogin(username, password);
+}
+
+void DataCenter::resetLoginSessionId(const QString &loginSessionId)
+{
+    this->loginSessionId = loginSessionId;
+
+    // 一旦会话 ID 改变，就需要保存到硬盘上
+    saveDataFile();
+}
+
+void DataCenter::userRegisterAsync(const QString &username, const QString &password)
+{
+    netClient.userRegister(username, password);
+}
+
+void DataCenter::phoneLoginAsync(const QString &phone, const QString &verifyCode)
+{
+    netClient.phoneLogin(phone, this->currentVerifyCodeId, verifyCode);
+}
+
+void DataCenter::phoneRegisterAsync(const QString &phone, const QString &verifyCode)
+{
+    netClient.phoneRegister(phone, this->currentVerifyCodeId, verifyCode);
+}
+
+void DataCenter::getSingleFileAsync(const QString &fileId)
+{
+    netClient.getSingleFile(loginSessionId, fileId);
 }
 
 ChatSessionInfo *DataCenter::findChatSessionById(const QString &chatSessionId)

@@ -7,6 +7,9 @@
 
 namespace model{
 
+static QString downLoadPath;
+QString getDownLoadPath();
+
 
 class DataCenter : public QObject
 {
@@ -106,7 +109,10 @@ public:
     void resetRecentMessageList(const QString& chatSessionId, std::shared_ptr<proto::GetRecentMsgRsp> resp);
 
     // 发送信息给服务器
-    void senTextMessageAsync(const QString& chatSessionId, const QString& content);
+    void sendTextMessageAsync(const QString& chatSessionId, const QString& content);
+    void sendImageMessageAsync(const QString& chatSessionId, const QByteArray& content);
+    void sendFileMessageAsync(const QString& chatSessionId, const QString& path, const QString& fileName, const QByteArray& content);
+
 
     // 修改用户昵称
     void changeNicknameAsync(const QString& nickname);
@@ -163,6 +169,16 @@ public:
     QList<Message>* getSearchMessageResult();
     void resetSearchMessageResult(const QList<proto::MessageInfo>& msgList);
 
+    // 登录注册
+    void userLoginAsync(const QString& username, const QString& password);
+    void resetLoginSessionId(const QString& loginSessionId);
+    void userRegisterAsync(const QString& username, const QString& password);
+    void phoneLoginAsync(const QString& phone, const QString& verifyCode);
+    void phoneRegisterAsync(const QString& phone, const QString& verifyCode);
+
+    // 获取单个文件
+    void getSingleFileAsync(const QString& fileId);
+
     /////////////////////////////////////////////////////////////////
     /// 辅助函数
     /////////////////////////////////////////////////////////////////
@@ -190,7 +206,7 @@ signals:
     void getApplyListDone();
     void getRecentMessageListDone(const QString& chatSessionId);
     void getRecentMessageListDoneNoUI(const QString& chatSessionId);
-    void sendMessageDone(MessageType messageType, const QByteArray& content, const QString& extraInfo);
+    void sendMessageDone(MessageType messageType, const QByteArray& content, const QString& extraInfo, const QString& path = "");
     void updateLastMessage(const QString& currentChatSessionId);
     void receiveMessageDone(const model::Message& lastMessage);
     void changeNicknameDone();
@@ -211,6 +227,12 @@ signals:
     void getMemberListDone(const QString& chatSessionId);
     void searchUserDone();
     void searchMessageDone();
+    void userLoginDone(bool ok, const QString& reason);
+    void userRegisterDone(bool ok, const QString& reason);
+    void phoneLoginDone(bool ok, const QString& reason);
+    void phoneRegisterDone(bool ok, const QString& reason);
+    void getSingleFileDone(const QString& fileId, const QByteArray& fileContent);
+    void getSingleFileFail(const QString& fileId, const QString& reason);
 };
 
 

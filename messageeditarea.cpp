@@ -5,6 +5,7 @@
 #include "mainwidget.h"
 #include <QVBoxLayout>
 #include <QScrollBar>
+#include <QFileDialog>
 MessageEditArea::MessageEditArea(QWidget *parent)
     : QWidget(parent)
 {
@@ -124,6 +125,12 @@ void MessageEditArea::initSignalSlot()
 
     // 3. 关联 “收到信息” 信号槽
     connect(dataCenter, &model::DataCenter::receiveMessageDone, this, &MessageEditArea::addOtherMessage);
+
+    // 4. 关联 “发送图片” 信号槽
+    connect(sendImageBtn, &QPushButton::clicked, this, &MessageEditArea::clickSendImageBtn);
+
+    // 4. 关联 “发送文件” 信号槽
+    connect(sendFileBtn, &QPushButton::clicked, this, &MessageEditArea::clickSendFileBtn);
 }
 
 void MessageEditArea::sendTextMessage()
@@ -149,10 +156,10 @@ void MessageEditArea::sendTextMessage()
     textEdit->setPlainText("");
 
     // 4. 通过网络发送数据给服务器
-    dataCenter->senTextMessageAsync(dataCenter->getCurrentChatSessionId(), content);
+    dataCenter->sendTextMessageAsync(dataCenter->getCurrentChatSessionId(), content);
 }
 
-void MessageEditArea::addSelfMessage(model::MessageType messageType, const QByteArray &content, const QString &extraInfo)
+void MessageEditArea::addSelfMessage(model::MessageType messageType, const QByteArray &content, const QString &extraInfo, const QString& path)
 {
     model::DataCenter* dataCenter = model::DataCenter::getInstance();
     const QString& currentChatSessionId = dataCenter->getCurrentChatSessionId();
@@ -163,7 +170,7 @@ void MessageEditArea::addSelfMessage(model::MessageType messageType, const QByte
     // 2. 新增消息到消息展示区
     MainWidget* mainWidget = MainWidget::getInstance();
     MessageShowArea* messageShowArea = mainWidget->getMessageShowArea();
-    messageShowArea->addMessage(false, message);
+    messageShowArea->addMessage(false, message, path);
 
     // 3. 滚动条滚动到末尾
     messageShowArea->scrollToEnd();
@@ -186,4 +193,67 @@ void MessageEditArea::addOtherMessage(const model::Message &message)
 
     // 4. 提示一个收到消息
     Toast::showMessage("收到"+message.sender.nickname+"的新消息！");
+}
+
+void MessageEditArea::clickSendImageBtn()
+{
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    // 1. 先判定当前是否有选中的会话
+    if(dataCenter->getCurrentChatSessionId().isEmpty())
+        return;
+
+    // 2. 弹出文件对话框
+    QString filter = "Image Files (*.png *.jpg *.jpeg)";
+    QList<QString> imagePath = QFileDialog::getOpenFileNames(this, "选择图片", QDir::homePath(), filter);
+    if(imagePath.isEmpty())
+        return;
+
+    // 3. 读取图片的内容
+    QList<QByteArray> imageContent;
+    for(auto& path : imagePath)
+    {
+        imageContent.push_back(model::loadFileToByteArray(path));
+    }
+
+    // 4. 发送请求
+    for(auto& content : imageContent)
+    {
+        dataCenter->sendImageMessageAsync(dataCenter->getCurrentChatSessionId(), content);
+    }
+}
+
+void MessageEditArea::clickSendFileBtn()
+{
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    // 1. 先判定当前是否有选中的会话
+    if(dataCenter->getCurrentChatSessionId().isEmpty())
+        return;
+
+    // 2. 弹出文件对话框
+    QString filter = "*";
+    QList<QString> filePath = QFileDialog::getOpenFileNames(this, "选择文件", QDir::homePath(), filter);
+    if(filePath.isEmpty())
+        return;
+
+    // 3. 读取文件的内容
+    QList<QByteArray> fileContent;
+    QList<QString> fileNameList;
+    for(auto& path : filePath)
+    {
+        if(model::isFileLargerThanMB(path, 200))
+        {
+            Toast::showMessage("不支持传输大小超过200MB的文件");
+            continue;
+        }
+        // fileContent.push_back(model::loadFileToByteArray(path));
+        // fileNameList.push_back(model::getFileName(path));
+        // 发送请求
+        dataCenter->sendFileMessageAsync(dataCenter->getCurrentChatSessionId(), path, model::getFileName(path), model::loadFileToByteArray(path));
+    }
+
+    // // 4. 发送请求
+    // for(int i = 0; i < fileContent.size() && i < fileNameList.size(); ++i)
+    // {
+    //     dataCenter->sendFileMessageAsync(dataCenter->getCurrentChatSessionId(), fileNameList[i], fileContent[i]);
+    // }
 }

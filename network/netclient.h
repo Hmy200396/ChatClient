@@ -86,7 +86,7 @@ public:
     void getSessionList(const QString& loginSessionId);
     void getApplyList(const QString& loginSessionId);
     void getRecentMessageList(const QString& loginSessionId, const QString& chatSessionId, bool updateUI);
-    void sendMessage(const QString& loginSessionId, const QString& chatSessionId, model::MessageType messageType, const QByteArray& content, const QString& extraInfo);
+    void sendMessage(const QString& loginSessionId, const QString& chatSessionId, model::MessageType messageType, const QByteArray& content, const QString& extraInfo, const QString& path = "");
     void receiveMessage(const QString& chatSessionId);
     void changeNickname(const QString& loginSessionId, const QString& nickname);
     void changeDescription(const QString& loginSessionId, const QString& desc);
@@ -102,6 +102,11 @@ public:
     void searchUser(const QString& loginSessionId, const QString& searchKey);
     void searchMessage(const QString& loginSessionId, const QString& chatSessionId, const QString& searchKey);
     void searchMessageByTime(const QString& loginSessionId, const QString& chatSessionId, const QDateTime& begTime, const QDateTime& endTime);
+    void userLogin(const QString &username, const QString &password);
+    void userRegister(const QString &username, const QString &password);
+    void phoneLogin(const QString &phone, const QString &verifyCodeId, const QString &verifyCode);
+    void phoneRegister(const QString &phone, const QString &verifyCodeId, const QString &verifyCode);
+    void getSingleFile(const QString &loginSessionId, const QString &fileId);
 
 private:
     model::DataCenter* dataCenter;

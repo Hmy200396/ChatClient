@@ -47,6 +47,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         model/datacenter.h model/datacenter.cpp
         network/netclient.h network/netclient.cpp
         verifycodewidget.h verifycodewidget.cpp
+
     )
 #new add
 qt_add_protobuf(ChatClient PROTO_FILES ${PB_FILES})

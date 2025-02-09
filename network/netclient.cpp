@@ -11,7 +11,7 @@ namespace network{
 NetClient::NetClient(model::DataCenter* dataCenter)
     :dataCenter(dataCenter)
 {
-    //initWebSocket();
+    // initWebSocket();
 }
 
 void NetClient::ping()
@@ -421,7 +421,7 @@ void NetClient::getRecentMessageList(const QString &loginSessionId, const QStrin
     });
 }
 
-void NetClient::sendMessage(const QString &loginSessionId, const QString &chatSessionId, model::MessageType messageType, const QByteArray &content, const QString& extraInfo)
+void NetClient::sendMessage(const QString &loginSessionId, const QString &chatSessionId, model::MessageType messageType, const QByteArray &content, const QString& extraInfo, const QString& path)
 {
     // 1. 通过 protobuf 构造 body
     proto::NewMessageReq req;
@@ -493,14 +493,18 @@ void NetClient::sendMessage(const QString &loginSessionId, const QString &chatSe
         // b) 判断响应是否正确
         if(!ok)
         {
-            LOG() << "[发送消息] 失败！requestId = " << newMessageResp->requestId() << ", reason = " << reason;
+            LOG() << "[发送消息] 失败！" << ", reason = " << reason;
             return;
         }
 
         // c) 不需要把响应的数据保存到 DataCenter 中
 
         // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
-        emit dataCenter->sendMessageDone(messageType, content, extraInfo);
+
+        if(messageType == model::FILE_TYPE)
+            emit dataCenter->sendMessageDone(messageType, QByteArray(), extraInfo, path);
+        else
+            emit dataCenter->sendMessageDone(messageType, content, extraInfo);
 
         //e) 打印日志
         LOG() << "[发送消息] 处理响应 requestId = " << newMessageResp->requestId();
@@ -1090,6 +1094,219 @@ void NetClient::searchMessageByTime(const QString &loginSessionId, const QString
 
         //e) 打印日志
         LOG() << "[按时间搜索历史消息] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::userLogin(const QString &username, const QString &password)
+{
+    // 用户名密码登录                  /service/user/username_login
+    // 1. 构造请求 body
+    proto::UserLoginReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setNickname(username);
+    pbReq.setPassword(password);
+    pbReq.setVerifyCode("");
+    pbReq.setVerifyCodeId("");
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[用户名登录] 发送请求 requestId = " << pbReq.requestId() << ", username = " << pbReq.nickname()
+          << ", password = " << pbReq.password();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/user/username_login", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::UserLoginRsp> pbResp = this->handleHttpResponse<proto::UserLoginRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[用户名登录] 响应出错！reason = " << reason;
+            emit dataCenter->userLoginDone(false, reason);
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        dataCenter->resetLoginSessionId(pbResp->loginSessionId());
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->userLoginDone(true, "");
+
+        //e) 打印日志
+        LOG() << "[用户名登录] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::userRegister(const QString &username, const QString &password)
+{
+    // 用户名密码注册                  /service/user/username_register
+    // 1. 构造请求 body
+    proto::UserRegisterReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setNickname(username);
+    pbReq.setPassword(password);
+    pbReq.setVerifyCode("");
+    pbReq.setVerifyCodeId("");
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[用户名注册] 发送请求 requestId = " << pbReq.requestId() << ", username = " << pbReq.nickname()
+          << ", password = " << pbReq.password();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/user/username_register", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::UserRegisterRsp> pbResp = this->handleHttpResponse<proto::UserRegisterRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[用户名注册] 响应出错！reason = " << reason;
+            emit dataCenter->userRegisterDone(false, reason);
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        // 注册不需要保存
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->userRegisterDone(true, "");
+
+        //e) 打印日志
+        LOG() << "[用户名注册] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::phoneLogin(const QString &phone, const QString &verifyCodeId, const QString &verifyCode)
+{
+    // 手机号码登录                    /service/user/phone_login
+    // 1. 构造请求 body
+    proto::PhoneLoginReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setPhoneNumber(phone);
+    pbReq.setVerifyCode(verifyCode);
+    pbReq.setVerifyCodeId(verifyCodeId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[手机号登录] 发送请求 requestId = " << pbReq.requestId() << ",  phone= " << pbReq.phoneNumber()
+        << ", verifyCode = " << pbReq.verifyCode() << ", verifyCodeId = " << pbReq.verifyCodeId();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/user/phone_login", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::PhoneLoginRsp> pbResp = this->handleHttpResponse<proto::PhoneLoginRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[手机号登录] 响应出错！reason = " << reason;
+            emit dataCenter->phoneLoginDone(false, reason);
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        dataCenter->resetLoginSessionId(pbResp->loginSessionId());
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->phoneLoginDone(true, "");
+
+        //e) 打印日志
+        LOG() << "[手机号登录] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::phoneRegister(const QString &phone, const QString &verifyCodeId, const QString &verifyCode)
+{
+    // 手机号码注册                    /service/user/phone_register
+    // 1. 构造请求 body
+    proto::PhoneRegisterReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setPhoneNumber(phone);
+    pbReq.setVerifyCode(verifyCode);
+    pbReq.setVerifyCodeId(verifyCodeId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[手机号注册] 发送请求 requestId = " << pbReq.requestId() << ",  phone= " << pbReq.phoneNumber()
+          << ", verifyCode = " << pbReq.verifyCode() << ", verifyCodeId = " << pbReq.verifyCodeId();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/user/phone_register", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::PhoneRegisterRsp> pbResp = this->handleHttpResponse<proto::PhoneRegisterRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[手机号注册] 响应出错！reason = " << reason;
+            emit dataCenter->phoneRegisterDone(false, reason);
+            return;
+        }
+
+        // c) 结果写入到 DataCenter 中
+        // 注册不需要保存
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->phoneRegisterDone(true, "");
+
+        //e) 打印日志
+        LOG() << "[手机号注册] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::getSingleFile(const QString &loginSessionId, const QString &fileId)
+{
+    // 获取单个文件数据                /service/file/get_single_file
+    // 1. 构造请求 body
+    proto::GetSingleFileReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setFileId(fileId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[获取文件内容] 发送请求 requestId = " << pbReq.requestId() << ",  loginSessionId= " << pbReq.sessionId()
+          << ", fileId = " << pbReq.fileId();
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/file/get_single_file", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::GetSingleFileRsp> pbResp = this->handleHttpResponse<proto::GetSingleFileRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[获取文件内容] 响应出错！reason = " << reason;
+            emit dataCenter->getSingleFileFail(fileId, reason);
+            return;
+        }
+
+        // c) 响应结果保存下来，之前都是把结果保存到 DataCenter
+        // 但是可能会有很多文件，不使用 DataCenter 保存
+        // 直接通过信号把文件数据，投送到调用者的位置上
+
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->getSingleFileDone(fileId, pbResp->fileData().fileContent());
+
+        //e) 打印日志
+        LOG() << "[获取文件内容] 响应完毕！ requestId = " << pbResp->requestId();
     });
 }
 

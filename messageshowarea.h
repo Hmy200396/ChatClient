@@ -4,8 +4,10 @@
 #include <QScrollArea>
 #include <QWidget>
 #include <QLabel>
+#include <QPushButton>
 #include "model/data.h"
 #include "debug.h"
+
 
 class MessageShowArea : public QScrollArea
 {
@@ -14,7 +16,7 @@ public:
     MessageShowArea();
 
     // 尾插
-    void addMessage(bool isLeft, const model::Message& message);
+    void addMessage(bool isLeft, const model::Message& message, const QString& path = "");
     // 头插
     void addFrontMessage(bool isLeft, const model::Message& message);
     // 清空消息
@@ -38,12 +40,12 @@ public:
     MessageItem(bool isLeft);
 
     // 通过 工厂方法 创建 MessageItem 实例
-    static MessageItem* makeMessageItem(bool isLeft, const model::Message& message);
+    static MessageItem* makeMessageItem(bool isLeft, const model::Message& message, const QString& path = "");
 
     // 添加工厂函数
     static QWidget* makeTextMessageItem(bool isLeft, const QString& text);
-    static QWidget* makeImageMessageItem();
-    static QWidget* makeFileMessageItem();
+    static QWidget* makeImageMessageItem(bool isLeft, const QString& fileId, const QByteArray& content);
+    static QWidget* makeFileMessageItem(bool isLeft, const QString &fileId, const QString &fileName, const QString& filePath);
     static QWidget* makeSpeechMessageItem();
 private:
     bool isLeft;
@@ -61,7 +63,47 @@ public:
     void paintEvent(QPaintEvent* event) override;
 private:
     QLabel* label;
+    bool isLeft;  
+};
+
+///////////////////////////////////////
+/// 创建类表示 “图片消息” 正文部分
+///////////////////////////////////////
+class MessageImageLabel : public QWidget
+{
+    Q_OBJECT
+public:
+    MessageImageLabel(const QString& fileId, const QByteArray& content, bool isLeft);
+    void updateUI(const QString& fileId, const QByteArray& content);
+    void paintEvent(QPaintEvent* event) override;
+
+private:
+    QPushButton* imageBtn;
+    QString fileId; // 该图片在服务器对应的文件 id
+    QByteArray content; // 图片的二进制数据
     bool isLeft;
+};
+
+///////////////////////////////////////
+/// 创建类表示 “文件消息” 正文部分
+///////////////////////////////////////
+class MessageFileLabel : public QWidget
+{
+public:
+    MessageFileLabel(const QString& fileId, const QString& fileName, const QString& filePath, bool isLeft);
+
+    void mousePressEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent* event) override;
+
+    void saveFile(const QString& fileId, const QByteArray& content);
+
+private:
+    QLabel* label;
+    bool isLeft;
+    QString fileId;
+    QString fileName;
+    QString filePath;
+    QByteArray content;
 };
 
 #endif // MESSAGESHOWAREA_H

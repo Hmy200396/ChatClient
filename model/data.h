@@ -66,19 +66,33 @@ static inline QByteArray loadFileToByteArray(const QString& path)
     file.close();
     return content;
 }
+// 判断文件大小
+static inline bool isFileLargerThanMB(const QString &filePath, const qint64& MB) {
+    QFileInfo fileInfo(filePath);
+    qint64 sizeInBytes = fileInfo.size(); // 获取文件大小，单位为字节
+    qint64 sizeInMB = sizeInBytes / (1024 * 1024); // 将字节转换为MB
+
+    if (sizeInMB > MB) {
+        return true; // 文件大于?MB
+    } else {
+        return false; // 文件不大于?MB
+    }
+}
+
 // 把 QByteArray 中的内容，写入到某个指定文件里
-static inline void writeByteArrayToFile(const QString& path, const QByteArray& content)
+static inline bool writeByteArrayToFile(const QString& path, const QByteArray& content)
 {
     QFile file(path);
     bool ok = file.open(QFile::WriteOnly);
     if(!ok)
     {
         LOG()<< "文件打开失败";
-        return;
+        return false;
     }
     file.write(content);
     file.flush();
     file.close();
+    return true;
 }
 
 /////////////////////////////////////////

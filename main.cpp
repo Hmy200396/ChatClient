@@ -12,8 +12,6 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     model::DataCenter* instance = model::DataCenter::getInstance();
-    instance->initDataFile();
-    instance->loadDataFile();
 
 #if TEST_SKIP_LOGIN
     MainWidget* w = MainWidget::getInstance();

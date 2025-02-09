@@ -21,8 +21,10 @@ private:
 private:
     void initSignalSlot();
     void sendTextMessage();
-    void addSelfMessage(model::MessageType messageType, const QByteArray& content, const QString& extraInfo);
+    void addSelfMessage(model::MessageType messageType, const QByteArray& content, const QString& extraInfo, const QString& path = "");
     void addOtherMessage(const model::Message& message);
+    void clickSendImageBtn();
+    void clickSendFileBtn();
 signals:
 };
 
