@@ -318,6 +318,11 @@ void DataCenter::sendFileMessageAsync(const QString &chatSessionId, const QStrin
     netClient.sendMessage(loginSessionId, chatSessionId, FILE_TYPE, content, fileName, path);
 }
 
+void DataCenter::sendSpeechMessageAsync(const QString &chatSessionId, const QByteArray &content)
+{
+    netClient.sendMessage(loginSessionId, chatSessionId, SPEECH_TYPE, content, "");
+}
+
 void DataCenter::changeNicknameAsync(const QString &nickname)
 {
     netClient.changeNickname(loginSessionId, nickname);

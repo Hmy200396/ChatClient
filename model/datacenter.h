@@ -112,7 +112,7 @@ public:
     void sendTextMessageAsync(const QString& chatSessionId, const QString& content);
     void sendImageMessageAsync(const QString& chatSessionId, const QByteArray& content);
     void sendFileMessageAsync(const QString& chatSessionId, const QString& path, const QString& fileName, const QByteArray& content);
-
+    void sendSpeechMessageAsync(const QString& chatSessionId, const QByteArray& content);
 
     // 修改用户昵称
     void changeNicknameAsync(const QString& nickname);
@@ -233,6 +233,7 @@ signals:
     void phoneRegisterDone(bool ok, const QString& reason);
     void getSingleFileDone(const QString& fileId, const QByteArray& fileContent);
     void getSingleFileFail(const QString& fileId, const QString& reason);
+    void stopAllSound();
 };
 
 

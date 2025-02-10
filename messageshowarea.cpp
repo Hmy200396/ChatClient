@@ -2,6 +2,7 @@
 #include "userinfowidget.h"
 #include "mainwidget.h"
 #include "model/datacenter.h"
+#include "soundrecorder.h"
 #include <QSizePolicy>
 #include <QScrollBar>
 #include <QVBoxLayout>
@@ -193,7 +194,7 @@ MessageItem *MessageItem::makeMessageItem(bool isLeft, const model::Message &mes
         contentWidget = makeFileMessageItem(isLeft, message.fileId, message.fileName, path);
         break;
     case model::SPEECH_TYPE:
-        contentWidget = makeSpeechMessageItem();
+        contentWidget = makeSpeechMessageItem(isLeft, message);
         break;
     default:
         LOG() << "错误的消息类型! messageType = " << message.messageType;
@@ -249,9 +250,10 @@ QWidget *MessageItem::makeFileMessageItem(bool isLeft, const QString &fileId, co
     return messageFileLabel;
 }
 
-QWidget *MessageItem::makeSpeechMessageItem()
+QWidget *MessageItem::makeSpeechMessageItem(bool isLeft, const model::Message& message)
 {
-    return nullptr;
+    MessageSpeechLabel* messageSpeechLabel = new MessageSpeechLabel(isLeft, message);
+    return messageSpeechLabel;
 }
 
 MessageContentLabel::MessageContentLabel(const QString &text, bool isLeft)
@@ -612,4 +614,154 @@ void MessageFileLabel::saveFile(const QString &fileId, const QByteArray &content
     {
         this->label->setText("[文件][保存失败]"+path);
     }
+}
+
+MessageSpeechLabel::MessageSpeechLabel(bool isLeft, const model::Message& message)
+    :isLeft(isLeft), content(message.content), fileId(message.fileId)
+{
+    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    QFont font;
+    font.setFamily("微软雅黑");
+    font.setPixelSize(16);
+
+    this->label = new QLabel(this);
+    if(isLeft)
+        this->label->setText("[语音][正在加载]");
+    else
+        this->label->setText("[语音]");
+    this->label->setFont(font);
+    this->label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    this->label->setWordWrap(true); // 文本自动换行
+    this->label->setStyleSheet("QLabel { padding: 0 10px; line-height: 1.2; color: rgb(35, 35, 35); background-color: transparent}");
+
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::getSingleFileDone, this, &MessageSpeechLabel::updateUI);
+    connect(dataCenter, &model::DataCenter::getSingleFileFail, this, [=](const QString& fileId, const QString& reason){
+        if(this->fileId != fileId)
+            return;
+        this->label->setText("[语音][加载失败]"+reason);
+    });
+    if(message.content.isEmpty())
+    {
+        dataCenter->getSingleFileAsync(fileId);
+    }
+
+    connect(dataCenter, &model::DataCenter::stopAllSound, this, &MessageSpeechLabel::playStop);
+}
+
+void MessageSpeechLabel::mousePressEvent(QMouseEvent *event)
+{
+    if(content.isEmpty())
+    {
+        this->label->setText("[语音][正在加载]");
+        return;
+    }
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    SoundRecorder* soundRecorder = SoundRecorder::getInstance();
+    connect(soundRecorder, &SoundRecorder::soundPlayDone, this, &MessageSpeechLabel::playDone, Qt::UniqueConnection);
+    emit dataCenter->stopAllSound();
+    this->label->setText("[语音][播放中...]");
+    soundRecorder->startPlay(content);
+}
+
+void MessageSpeechLabel::paintEvent(QPaintEvent *event)
+{
+    // 1. 获取父元素的宽度
+    QObject* object = this->parent();
+    if(!object->isWidgetType())
+        return;
+    QWidget* parent = dynamic_cast<QWidget*>(object);
+    const int maxWidth = parent->width() * 0.6;
+
+    // 2. 计算当前文本，如果是一行放置需要多宽
+    QFontMetrics metrics(this->label->font());
+    int totalWidth = metrics.horizontalAdvance(this->label->text());
+
+    // // 3. 计算行数
+    // int width = maxWidth;
+    // int rows = (totalWidth / (maxWidth - 40)) + 1;
+    // if(rows == 1)
+    // {
+    //     // 只有一行 40为左右各20边距
+    //     width = totalWidth + 40;
+    // }
+
+    // // 4. 根据行数，计算得到的高度  20为上下各10边距
+    // int height = rows * (this->label->font().pixelSize() * 1.2) + 20;
+
+    // 计算宽度：短文本不换行，长文本换行
+    bool needWrap = totalWidth > (maxWidth - 40);
+    int width = needWrap ? (maxWidth) : (totalWidth + 40);
+
+    // 设置 QLabel 的宽度和换行
+    this->label->setWordWrap(needWrap);
+    this->label->setFixedWidth(width); // 预留内边距
+    this->label->adjustSize(); // 计算 QLabel 高度
+    int height = this->label->height() + 20;
+
+    // 5. 绘制圆角矩形和箭头
+    QPainter painter(this);
+    QPainterPath path;
+    // 设置 抗锯齿
+    painter.setRenderHint(QPainter::Antialiasing);
+    if(isLeft)
+    {
+        painter.setPen((QPen(QColor(255, 255 ,255))));
+        painter.setBrush((QColor(255, 255 ,255)));
+
+        painter.drawRoundedRect(10, 0, width, height, 10, 10);
+        path.moveTo(10, 15);
+        path.lineTo(0, 20);
+        path.lineTo(10, 25);
+        path.closeSubpath();
+        painter.drawPath(path);
+
+        this->label->setGeometry(10, 0, width, height);
+    }
+    else
+    {
+        painter.setPen((QPen(QColor(137, 217 ,97))));
+        painter.setBrush((QColor(137, 217 ,97)));
+
+        int leftPos = this->width() - width - 10;
+        int rightPos = this->width() - 10;
+        painter.drawRoundedRect(leftPos, 0, width, height, 10, 10);
+        path.moveTo(rightPos, 15);
+        path.lineTo(rightPos + 10, 20);
+        path.lineTo(rightPos, 25);
+        path.closeSubpath();
+        painter.drawPath(path);
+
+        this->label->setGeometry(leftPos, 0, width, height);
+    }
+
+    // 6. 重新设置父元素高度，确保父元素足够高，能够容纳下上述绘制区域
+    parent->setFixedHeight(height + 50);
+}
+
+void MessageSpeechLabel::playDone()
+{
+    if(this->label->text() == "[语音][播放中...]")
+    {
+        this->label->setText("[语音]");
+    }
+}
+
+void MessageSpeechLabel::playStop()
+{
+    if(this->label->text() == "[语音][播放中...]")
+    {
+        this->label->setText("[语音]");
+    }
+}
+
+void MessageSpeechLabel::updateUI(const QString& fileId, const QByteArray& fileContent)
+{
+    if(this->fileId != fileId)
+        return;
+
+    this->content = fileContent;
+
+    this->label->setText("[语音]");
 }

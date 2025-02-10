@@ -3,6 +3,7 @@
 #include "model/datacenter.h"
 #include "toast.h"
 #include "mainwidget.h"
+#include "soundrecorder.h"
 #include <QVBoxLayout>
 #include <QScrollBar>
 #include <QFileDialog>
@@ -95,7 +96,17 @@ MessageEditArea::MessageEditArea(QWidget *parent)
         );
     vlayout->addWidget(textEdit);
 
-    // 6. 添加发送按钮
+    // 5. 添加提示 “录制中” 这样的 QLabel
+    tipLabel = new QLabel();
+    tipLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    tipLabel->setText("录音中...");
+    tipLabel->setAlignment(Qt::AlignCenter);
+    tipLabel->setFont(QFont("微软雅黑", 24, 600));
+    tipLabel->setStyleSheet("QLabel { color: black; }");
+    tipLabel->hide();
+    vlayout->addWidget(tipLabel);
+
+    // 7. 添加发送按钮
     sendTextBtn = new QPushButton();
     sendTextBtn->setText("发送");
     sendTextBtn->setFixedSize(120, 40);
@@ -104,7 +115,7 @@ MessageEditArea::MessageEditArea(QWidget *parent)
                                "QPushButton:pressed { background-color: rgb(200, 200, 200); }");
     vlayout->addWidget(sendTextBtn, 0, Qt::AlignRight | Qt::AlignVCenter);
 
-    // 7. 初始化信号槽
+    // 8. 初始化信号槽
     initSignalSlot();
 }
 
@@ -129,8 +140,14 @@ void MessageEditArea::initSignalSlot()
     // 4. 关联 “发送图片” 信号槽
     connect(sendImageBtn, &QPushButton::clicked, this, &MessageEditArea::clickSendImageBtn);
 
-    // 4. 关联 “发送文件” 信号槽
+    // 5. 关联 “发送文件” 信号槽
     connect(sendFileBtn, &QPushButton::clicked, this, &MessageEditArea::clickSendFileBtn);
+
+    // 6. 关联 “发送语音” 信号槽
+    connect(sendSpeechBtn, &QPushButton::pressed, this, &MessageEditArea::soundRecordPressed);
+    connect(sendSpeechBtn, &QPushButton::released, this, &MessageEditArea::soundRecordReleased);
+    SoundRecorder* soundRecorder = SoundRecorder::getInstance();
+    connect(soundRecorder, &SoundRecorder::soundRecordDone, this, &MessageEditArea::sendSpeech);
 }
 
 void MessageEditArea::sendTextMessage()
@@ -256,4 +273,48 @@ void MessageEditArea::clickSendFileBtn()
     // {
     //     dataCenter->sendFileMessageAsync(dataCenter->getCurrentChatSessionId(), fileNameList[i], fileContent[i]);
     // }
+}
+
+void MessageEditArea::soundRecordPressed()
+{
+    // 判定当前是否选择会话
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    if(dataCenter->getCurrentChatSessionId().isEmpty())
+        return;
+
+    sendSpeechBtn->setIcon(QIcon(":/resource/image/sound_active.png"));
+
+    // 开始录音
+    SoundRecorder* soundRecorder = SoundRecorder::getInstance();
+    soundRecorder->startRecord();
+
+    tipLabel->show();
+    textEdit->hide();
+}
+
+void MessageEditArea::soundRecordReleased()
+{
+    // 判定当前是否选择会话
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    if(dataCenter->getCurrentChatSessionId().isEmpty())
+        return;
+
+    sendSpeechBtn->setIcon(QIcon(":/resource/image/sound.png"));
+
+    // 停止录音
+    SoundRecorder* soundRecorder = SoundRecorder::getInstance();
+    soundRecorder->stopRecord();
+
+    tipLabel->hide();
+    textEdit->show();
+}
+
+void MessageEditArea::sendSpeech(const QString &path)
+{
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    // 1. 读取到语音文件的内容
+    QByteArray content = model::loadFileToByteArray(path);
+    if(content.isEmpty())
+        return;
+    dataCenter->sendSpeechMessageAsync(dataCenter->getCurrentChatSessionId(), content);
 }

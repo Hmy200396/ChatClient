@@ -46,7 +46,7 @@ public:
     static QWidget* makeTextMessageItem(bool isLeft, const QString& text);
     static QWidget* makeImageMessageItem(bool isLeft, const QString& fileId, const QByteArray& content);
     static QWidget* makeFileMessageItem(bool isLeft, const QString &fileId, const QString &fileName, const QString& filePath);
-    static QWidget* makeSpeechMessageItem();
+    static QWidget* makeSpeechMessageItem(bool isLeft, const model::Message& message);
 private:
     bool isLeft;
 };
@@ -89,6 +89,7 @@ private:
 ///////////////////////////////////////
 class MessageFileLabel : public QWidget
 {
+    Q_OBJECT
 public:
     MessageFileLabel(const QString& fileId, const QString& fileName, const QString& filePath, bool isLeft);
 
@@ -103,6 +104,26 @@ private:
     QString fileId;
     QString fileName;
     QString filePath;
+    //QByteArray content;
+};
+
+class MessageSpeechLabel : public QWidget
+{
+    Q_OBJECT
+public:
+    MessageSpeechLabel(bool isLeft, const model::Message& message);
+
+    void mousePressEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent* event) override;
+
+    void playDone();
+    void playStop();
+    void updateUI(const QString& fileId, const QByteArray& fileContent);
+
+private:
+    bool isLeft;
+    QString fileId;
+    QLabel* label;
     QByteArray content;
 };
 
