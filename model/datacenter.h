@@ -179,6 +179,9 @@ public:
     // 获取单个文件
     void getSingleFileAsync(const QString& fileId);
 
+    // 语音转文字
+    void speechConvertTextAsync(const QString& fileId, const QByteArray& content);
+
     /////////////////////////////////////////////////////////////////
     /// 辅助函数
     /////////////////////////////////////////////////////////////////
@@ -234,6 +237,7 @@ signals:
     void getSingleFileDone(const QString& fileId, const QByteArray& fileContent);
     void getSingleFileFail(const QString& fileId, const QString& reason);
     void stopAllSound();
+    void speechConvertTextDone(const QString& fileId, const QString& text);
 };
 
 

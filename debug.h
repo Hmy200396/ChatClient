@@ -10,4 +10,7 @@
 // 测试网络联通性
 #define TEST_NETWORK 0
 
+// 是否日志重定向
+#define DEPOLY 0
+
 #endif // DEBUG_H

@@ -6,6 +6,8 @@
 #include <QGridLayout>
 #include <QRadioButton>
 #include <QLineEdit>
+#include <QPushButton>
+#include <QLabel>
 #include "model/data.h"
 
 /////////////////////////////////////
@@ -47,6 +49,49 @@ private:
     QDateTimeEdit* endTimeEdit;
 
     QWidget* container;
+};
+
+/////////////////////////////////////
+/// 展示图片历史消息
+/////////////////////////////////////
+class ImageButton : public QPushButton
+{
+public:
+    ImageButton(const QString& fileId, const QByteArray& content);
+    void updateUI(const QString& fileId, const QByteArray& content);
+private:
+    QString fileId;
+};
+
+/////////////////////////////////////
+/// 展示文件历史消息
+/////////////////////////////////////
+class FileLabel : public QLabel
+{
+public:
+    FileLabel(const QString& fileId, const QString& fileName);
+    void saveFile(const QString &fileId, const QByteArray &content);
+    void mousePressEvent(QMouseEvent *event) override;
+private:
+    QString fileId;
+    QString filePath;
+    QString fileName;
+};
+
+/////////////////////////////////////
+/// 展示语音历史消息
+/////////////////////////////////////
+class SpeechLabel : public QLabel
+{
+public:
+    SpeechLabel(const QString& fileId, const QByteArray& content);
+
+    void getContentDone(const QString& fileId, const QByteArray& content);
+    void mousePressEvent(QMouseEvent *event) override;
+
+private:
+    QString fileId;
+    QByteArray content;
 };
 
 #endif // HISTORYMESSAGEWIDGET_H

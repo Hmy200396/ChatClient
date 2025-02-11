@@ -107,6 +107,7 @@ public:
     void phoneLogin(const QString &phone, const QString &verifyCodeId, const QString &verifyCode);
     void phoneRegister(const QString &phone, const QString &verifyCodeId, const QString &verifyCode);
     void getSingleFile(const QString &loginSessionId, const QString &fileId);
+    void speechConvertText(const QString &loginSessionId, const QString &fileId, const QByteArray& content);
 
 private:
     model::DataCenter* dataCenter;

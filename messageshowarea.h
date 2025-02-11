@@ -115,6 +115,9 @@ public:
 
     void mousePressEvent(QMouseEvent *event) override;
     void paintEvent(QPaintEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent * event) override;
+
+    void speechConvertTextDone(const QString& fileId, const QString& text);
 
     void playDone();
     void playStop();

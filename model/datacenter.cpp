@@ -585,6 +585,11 @@ void DataCenter::getSingleFileAsync(const QString &fileId)
     netClient.getSingleFile(loginSessionId, fileId);
 }
 
+void DataCenter::speechConvertTextAsync(const QString &fileId, const QByteArray &content)
+{
+    netClient.speechConvertText(loginSessionId, fileId, content);
+}
+
 ChatSessionInfo *DataCenter::findChatSessionById(const QString &chatSessionId)
 {
     if(chatSessionList == nullptr)

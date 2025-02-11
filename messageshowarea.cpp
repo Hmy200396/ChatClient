@@ -16,6 +16,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QMessageBox>
+#include <QMenu>
 ///////////////////////////////////////
 /// 表示一个消息展示区
 ///////////////////////////////////////
@@ -652,6 +653,9 @@ MessageSpeechLabel::MessageSpeechLabel(bool isLeft, const model::Message& messag
 
 void MessageSpeechLabel::mousePressEvent(QMouseEvent *event)
 {
+    if(event->button() == Qt::RightButton) {
+        return;
+    }
     if(content.isEmpty())
     {
         this->label->setText("[语音][正在加载]");
@@ -738,6 +742,28 @@ void MessageSpeechLabel::paintEvent(QPaintEvent *event)
 
     // 6. 重新设置父元素高度，确保父元素足够高，能够容纳下上述绘制区域
     parent->setFixedHeight(height + 50);
+}
+
+void MessageSpeechLabel::contextMenuEvent(QContextMenuEvent *event)
+{
+    QMenu menu(this);
+    menu.setStyleSheet("QMenu { border: none; color: black; background-color: rgb(255, 255, 255); }"
+                       "QMenu::item:selected { background-color: rgb(200, 200, 200); }");
+    QAction* action = menu.addAction("语音转文字");
+    connect(action, &QAction::triggered, this, [=](){
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        connect(dataCenter, &model::DataCenter::speechConvertTextDone, this, &MessageSpeechLabel::speechConvertTextDone, Qt::UniqueConnection);
+        dataCenter->speechConvertTextAsync(this->fileId, this->content);
+    });
+    menu.exec(event->globalPos());
+}
+
+void MessageSpeechLabel::speechConvertTextDone(const QString &fileId, const QString &text)
+{
+    if(this->fileId != fileId)
+        return;
+
+    this->label->setText("[语音转文字]" + text);
 }
 
 void MessageSpeechLabel::playDone()

@@ -8,9 +8,24 @@
 #include "loginwidget.h"
 #include "debug.h"
 
+FILE* output = nullptr;
+
+void msgHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg)
+{
+    QByteArray log = msg.toUtf8();
+    fprintf(output, "%s\n", log.constData());
+    fflush(output);
+}
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+#if DEPOLY
+    output = fopen("./log.txt", "a");
+    qInstallMessageHandler(msgHandler);
+#endif
+
     model::DataCenter* instance = model::DataCenter::getInstance();
 
 #if TEST_SKIP_LOGIN

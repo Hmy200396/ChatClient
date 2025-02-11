@@ -10,7 +10,11 @@
 #include <QFrame>
 #include <QPainter>
 #include <QStyleOption>
+#include <QMessageBox>
+#include <QDir>
+#include <QDesktopServices>
 #include "model/datacenter.h"
+#include "soundrecorder.h"
 #include "toast.h"
 
 /////////////////////////////////////
@@ -64,14 +68,20 @@ HistoryItem *HistoryItem::makeHistoryItem(const model::Message &message)
     else if(message.messageType == model::IMAGE_TYPE)
     {
         // 图片消息
+        ImageButton* imageButton = new ImageButton(message.fileId, message.content);
+        contentWidget = imageButton;
     }
     else if(message.messageType == model::FILE_TYPE)
     {
         // 文件消息
+        FileLabel* fileLabel = new FileLabel(message.fileId, message.fileName);
+        contentWidget = fileLabel;
     }
     else if(message.messageType == model::SPEECH_TYPE)
     {
         // 语音消息
+        SpeechLabel* speechLabel = new SpeechLabel(message.fileId, message.content);
+        contentWidget = speechLabel;
     }
     else
     {
@@ -355,4 +365,194 @@ void HistoryMessageWidget::initScrollArea(QGridLayout *layout)
     vlayout->setSpacing(0);
     vlayout->setAlignment(Qt::AlignTop);
     container->setLayout(vlayout);
+}
+
+ImageButton::ImageButton(const QString &fileId, const QByteArray &content)
+    :fileId(fileId)
+{
+    this->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    this->setStyleSheet("QPushButton { border: none; }");
+
+    if(content.isEmpty())
+    {
+        // 通过网络获取
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        connect(dataCenter, &model::DataCenter::getSingleFileDone, this, &ImageButton::updateUI);
+        dataCenter->getSingleFileAsync(fileId);
+    }
+    else
+    {
+        // 直接显示到界面上
+        updateUI(fileId, content);
+    }
+}
+
+void ImageButton::updateUI(const QString &fileId, const QByteArray &content)
+{
+    if(this->fileId != fileId)
+        return;
+    QByteArray& imageContent = const_cast<QByteArray&>(content);
+    if(content.isEmpty())
+    {
+        imageContent = model::loadFileToByteArray(":/resource/image/loading.png");
+    }
+
+    // 如果图片尺寸太大，需要缩放
+    QImage image;
+    image.loadFromData(imageContent);
+
+    int width = image.width();
+    int height = image.height();
+    if(image.width() >= 300)
+    {
+        // 进行缩放
+        width = 300;
+        height = ((double)image.height() / image.width()) * width;
+    }
+
+    this->resize(width, height);
+    this->setIconSize(QSize(width, height));
+    QPixmap pixmap = QPixmap::fromImage(image);
+    this->setIcon(QIcon(pixmap));
+}
+
+FileLabel::FileLabel(const QString &fileId, const QString &fileName)
+    :fileId(fileId), fileName(fileName)
+{
+    QFont font("微软雅黑", 12);
+    this->setFont(font);
+    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    this->setWordWrap(true); // 换行
+    this->setText("[文件][未下载]"+fileName);
+    this->setAlignment(Qt::AlignTop);
+    this->adjustSize(); // 设置让 label 能够自动调整大小
+    this->setStyleSheet("QLabel { color: black; }");
+
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::getSingleFileDone, this, &FileLabel::saveFile);
+    connect(dataCenter, &model::DataCenter::getSingleFileFail, this, [=](const QString& fileId, const QString& reason){
+        if(this->fileId != fileId)
+            return;
+        this->setText("[文件][下载失败]"+reason);
+    });
+}
+
+void FileLabel::saveFile(const QString &fileId, const QByteArray &content)
+{
+    if(this->fileId != fileId)
+        return;
+
+    QString path = model::getDownLoadPath() + fileName;
+
+
+    if(model::writeByteArrayToFile(path, content))
+    {
+        this->filePath = path;
+        this->setText("[文件][已下载]"+fileName);
+        this->update();
+    }
+    else
+    {
+        this->setText("[文件][保存失败]"+path);
+    }
+}
+
+void FileLabel::mousePressEvent(QMouseEvent *event)
+{
+    if(this->filePath.isEmpty())
+    {
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        this->setText("[文件][正在下载]"+fileName);
+        dataCenter->getSingleFileAsync(this->fileId);
+    }
+    else
+    {
+        // 获取文件所在文件夹的路径
+        QFileInfo fileInfo(this->filePath);
+        if(!fileInfo.exists())
+        {
+            LOG()<<"文件不存在："<<filePath;
+            filePath.clear();
+
+            QMessageBox msgBox;
+            msgBox.setWindowIcon(QIcon(":/resource/image/logo.png"));
+            msgBox.setWindowTitle("文件不存在");
+            msgBox.setText("文件不存在,是否重新下载？");
+            msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+            int result = msgBox.exec();
+            if(result == QMessageBox::Ok)
+            {
+                LOG()<<"重新下载"<<fileName;
+                this->setText("[文件][正在下载]"+fileName);
+                model::DataCenter* dataCenter = model::DataCenter::getInstance();
+                dataCenter->getSingleFileAsync(this->fileId);
+            }
+            else
+            {
+                this->setText("[文件][已失效]"+fileName);
+            }
+            return;
+        }
+
+        QString folderPath = fileInfo.dir().absolutePath();
+
+        // 使用QDesktopServices打开文件夹
+        QUrl folderUrl = QUrl::fromLocalFile(folderPath);
+        if (!QDesktopServices::openUrl(folderUrl))
+        {
+            LOG() << "Failed to open folder:" << folderPath;
+        }
+    }
+}
+
+SpeechLabel::SpeechLabel(const QString &fileId, const QByteArray &content)
+    :fileId(fileId), content(content)
+{
+    QFont font("微软雅黑", 12);
+    this->setFont(font);
+    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    this->setWordWrap(true); // 换行
+    this->setText("[语音][正在加载]");
+    this->setAlignment(Qt::AlignTop);
+    this->adjustSize(); // 设置让 label 能够自动调整大小
+    this->setStyleSheet("QLabel { color: black; }");
+
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::getSingleFileDone, this, &SpeechLabel::getContentDone);
+    connect(dataCenter, &model::DataCenter::getSingleFileFail, this, [=](const QString& fileId, const QString& reason){
+        if(this->fileId != fileId)
+            return;
+        this->setText("[语音][加载失败]"+reason);
+    });
+
+    if(content.isEmpty())
+    {
+        dataCenter->getSingleFileAsync(fileId);
+    }
+    else
+    {
+        this->setText("[语音]");
+    }
+}
+
+void SpeechLabel::getContentDone(const QString& fileId, const QByteArray& content)
+{
+    if(this->fileId != fileId)
+        return;
+
+    this->content = content;
+
+    this->setText("[语音]");
+}
+
+void SpeechLabel::mousePressEvent(QMouseEvent *event)
+{
+    if(content.isEmpty())
+    {
+        this->setText("[语音][正在加载]");
+        return;
+    }
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    SoundRecorder* soundRecorder = SoundRecorder::getInstance();
+    soundRecorder->startPlay(content);
 }

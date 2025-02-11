@@ -1310,4 +1310,44 @@ void NetClient::getSingleFile(const QString &loginSessionId, const QString &file
     });
 }
 
+void NetClient::speechConvertText(const QString &loginSessionId, const QString &fileId, const QByteArray &content)
+{
+    // 语音转文字                     /service/speech/recognition
+    // 1. 构造请求 body
+    proto::SpeechRecognitionReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setSpeechContent(content);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[语音转文字] 发送请求 requestId = " << pbReq.requestId() << ",  loginSessionId= " << pbReq.sessionId()
+          << ", fileId = " << fileId;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/speech/recognition", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::SpeechRecognitionRsp> pbResp = this->handleHttpResponse<proto::SpeechRecognitionRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[语音转文字] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 不使用 DataCenter 保存
+
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->speechConvertTextDone(fileId, pbResp->recognitionResult());
+
+        //e) 打印日志
+        LOG() << "[语音转文字] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
 } // end network
