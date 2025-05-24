@@ -54,6 +54,18 @@ message MsgSearchRsp {
     repeated MessageInfo msg_list = 4;
 }
 
+message GetFileIdReq {
+    string request_id = 1;
+    string session_id = 2;
+    string message_id = 4;
+}
+message GetFileIdRsp {
+    string request_id = 1;
+    bool success = 2;
+    string errmsg = 3;
+    string file_id = 4;
+}
+
 service MsgStorageService {
     rpc GetHistoryMsg(GetHistoryMsgReq) returns (GetHistoryMsgRsp);
     rpc GetRecentMsg(GetRecentMsgReq) returns (GetRecentMsgRsp);

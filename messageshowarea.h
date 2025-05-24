@@ -45,7 +45,7 @@ public:
     // 添加工厂函数
     static QWidget* makeTextMessageItem(bool isLeft, const QString& text);
     static QWidget* makeImageMessageItem(bool isLeft, const QString& fileId, const QByteArray& content);
-    static QWidget* makeFileMessageItem(bool isLeft, const QString &fileId, const QString &fileName, const QString& filePath);
+    static QWidget* makeFileMessageItem(bool isLeft, const QString &messageId, const QString &fileId, const QString &fileName, const QString& filePath);
     static QWidget* makeSpeechMessageItem(bool isLeft, const model::Message& message);
 private:
     bool isLeft;
@@ -79,6 +79,7 @@ public:
 
 private:
     QPushButton* imageBtn;
+    QString messageId;
     QString fileId; // 该图片在服务器对应的文件 id
     QByteArray content; // 图片的二进制数据
     bool isLeft;
@@ -91,7 +92,7 @@ class MessageFileLabel : public QWidget
 {
     Q_OBJECT
 public:
-    MessageFileLabel(const QString& fileId, const QString& fileName, const QString& filePath, bool isLeft);
+    MessageFileLabel(const QString& messageId, const QString& fileId, const QString& fileName, const QString& filePath, bool isLeft);
 
     void mousePressEvent(QMouseEvent *event) override;
     void paintEvent(QPaintEvent* event) override;
@@ -101,12 +102,16 @@ public:
 private:
     QLabel* label;
     bool isLeft;
+    QString messageId;
     QString fileId;
     QString fileName;
     QString filePath;
     //QByteArray content;
 };
 
+///////////////////////////////////////
+/// 创建类表示 “语音消息” 正文部分
+///////////////////////////////////////
 class MessageSpeechLabel : public QWidget
 {
     Q_OBJECT
@@ -125,6 +130,7 @@ public:
 
 private:
     bool isLeft;
+    QString messageId;
     QString fileId;
     QLabel* label;
     QByteArray content;

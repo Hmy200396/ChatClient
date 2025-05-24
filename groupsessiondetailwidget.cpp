@@ -6,9 +6,11 @@
 #include "sessiondetailwidget.h"
 #include "debug.h"
 #include "model/datacenter.h"
+#include "invitefriendjoingroupdialog.h"
 
-GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
+GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent, model::ChatSessionInfo* chatSessionInfo)
     :QDialog(parent)
+    ,chatSessionInfo(chatSessionInfo)
 {
     // 1. 设置窗口基本属性
     this->setFixedSize(410, 600);
@@ -20,7 +22,7 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     // 2. 创建布局管理器
     QVBoxLayout* vlayout = new QVBoxLayout();
     vlayout->setContentsMargins(50, 20, 50, 50);
-    vlayout->setSpacing(10);
+    vlayout->setSpacing(20);
     vlayout->setAlignment(Qt::AlignTop);
     this->setLayout(vlayout);
 
@@ -90,20 +92,20 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
 
     // 6. 添加 真实的群聊名字 和 修改按钮
     // 6.1 创建水平布局
-    QHBoxLayout* hlayout = new QHBoxLayout();
+    hlayout = new QHBoxLayout();
     hlayout->setSpacing(0);
     hlayout->setContentsMargins(0, 0, 0, 0);
     vlayout->addLayout(hlayout);
 
     // 6.2 创建真实群聊名字的 label
     groupNameLabel = new QLabel();
-    groupNameLabel->setFixedHeight(50);
+    groupNameLabel->setFixedHeight(40);
     groupNameLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     groupNameLabel->setStyleSheet("QLabel { font-size: 18px; color: black; }");
     hlayout->addWidget(groupNameLabel);
 
     // 6.3 创建 “修改按钮”
-    QPushButton* modifyBtn = new QPushButton();
+    modifyBtn = new QPushButton();
     modifyBtn->setFixedSize(30, 30);
     modifyBtn->setIconSize(QSize(20, 20));
     modifyBtn->setIcon(QIcon(":/resource/image/modify.png"));
@@ -111,8 +113,24 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
                              "QPushButton:pressed { background-color: rgb(230, 230 ,230); }");
     hlayout->addWidget(modifyBtn);
 
+    // 6.4 创建 群聊名称编辑 edit
+    groupNameEdit = new QLineEdit();
+    groupNameEdit->setFixedHeight(40);
+    groupNameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    groupNameEdit->setStyleSheet("QLineEdit { border: none; border-radius: 10px; padding-left: 5px; color: black; font-size: 18px; background-color: rgb(230, 230 ,230);}");
+    groupNameEdit->hide();
+
+    // 6.5 创建 “提交按钮”
+    submitBtn = new QPushButton();
+    submitBtn->setFixedSize(30, 30);
+    submitBtn->setIconSize(QSize(20, 20));
+    submitBtn->setIcon(QIcon(":/resource/image/submit.png"));
+    submitBtn->setStyleSheet("QPushButton { border: none; background-color: transparent;}"
+                             "QPushButton:pressed { background-color: rgb(230, 230 ,230); }");
+    submitBtn->hide();
+
     // 7 退出群聊按钮
-    QPushButton* exitGroupBtn = new QPushButton();
+    exitGroupBtn = new QPushButton();
     exitGroupBtn->setText("退出群聊");
     exitGroupBtn->setFixedHeight(50);
     exitGroupBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -120,6 +138,13 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     btnStyle += "QPushButton:pressed { background-color: rgb(230, 230 ,230);}";
     exitGroupBtn->setStyleSheet(btnStyle);
     vlayout->addWidget(exitGroupBtn);
+
+    // 8. 绑定信号槽
+    connect(addBtn->getAvatar(), &QPushButton::clicked, this, [=](){
+        InviteFriendJoinGroupDialog* inviteFriendJoinGroupDialog = new InviteFriendJoinGroupDialog(this, this->userIdList);
+        inviteFriendJoinGroupDialog->exec();
+    });
+    connect(exitGroupBtn, &QPushButton::clicked, this, &GroupSessionDetailWidget::exitGroup);
 
     // 此处构造假数据测试页面
 #if TEST_UI
@@ -131,7 +156,10 @@ GroupSessionDetailWidget::GroupSessionDetailWidget(QWidget* parent)
     }
 #endif
 
-    // 8. 从服务器加载数据
+    // 8. 初始化信号槽
+    initSignalSlot();
+
+    // 9. 从服务器加载数据
     initData();
 
 }
@@ -170,10 +198,70 @@ void GroupSessionDetailWidget::initMembers(const QString& chatSessionId)
     // 遍历成员列表
     for(const auto& u : *memberList)
     {
+        userIdList.push_back(u.userId);
         AvatarItem* avatarItem = new AvatarItem(u.avatar, u.nickname);
         this->addMember(avatarItem);
     }
 
     // 群聊名称
-    groupNameLabel->setText("新的群聊");
+    groupNameLabel->setText(chatSessionInfo->chatSessionName);
+}
+
+void GroupSessionDetailWidget::initSignalSlot()
+{
+    connect(modifyBtn, &QPushButton::clicked, this, [=](){
+        // 把当前的 groupNameLabel 和 modifyBtn 隐藏起来
+        groupNameLabel->hide();
+        modifyBtn->hide();
+        hlayout->removeWidget(groupNameLabel);
+        hlayout->removeWidget(modifyBtn);
+        // 把 nameEdit 和 nameSubmitBtn 显示出来
+        groupNameEdit->show();
+        submitBtn->show();
+        hlayout->addWidget(groupNameEdit);
+        hlayout->addWidget(submitBtn);
+        // 把输入框内容进行设置
+        groupNameEdit->setText(groupNameLabel->text());
+    });
+
+    connect(submitBtn, &QPushButton::clicked, this, &GroupSessionDetailWidget::clickSubmitBtn);
+}
+
+void GroupSessionDetailWidget::exitGroup()
+{
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::exitGroupChatSessionDone, this, &GroupSessionDetailWidget::exitGroupChatSessionDone, Qt::UniqueConnection);
+    dataCenter->exitGroupChatSessionAsync(dataCenter->getCurrentChatSessionId());
+}
+
+void GroupSessionDetailWidget::exitGroupChatSessionDone()
+{
+    this->close();
+}
+
+void GroupSessionDetailWidget::clickSubmitBtn()
+{
+    // 1. 输入框中拿到修改后的名称
+    const QString& groupname = groupNameEdit->text();
+    if(groupname.isEmpty())
+        return;
+
+    // 2. 发送网络请求
+    model::DataCenter* dataCenter = model::DataCenter::getInstance();
+    connect(dataCenter, &model::DataCenter::changeGroupnameDone, this, &GroupSessionDetailWidget::clickSubmitBtnDone, Qt::UniqueConnection);
+    dataCenter->changeGroupnameAsync(chatSessionInfo->chatSessionId, groupname);
+}
+
+void GroupSessionDetailWidget::clickSubmitBtnDone(const QString& chatSessionId, const QString& groupname)
+{
+    hlayout->removeWidget(groupNameEdit);
+    groupNameEdit->hide();
+    hlayout->addWidget(groupNameLabel);
+    groupNameLabel->show();
+    groupNameLabel->setText(groupname);
+
+    hlayout->removeWidget(submitBtn);
+    submitBtn->hide();
+    hlayout->addWidget(modifyBtn);
+    modifyBtn->show();
 }

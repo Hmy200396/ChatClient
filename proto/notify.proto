@@ -10,6 +10,7 @@ enum NotifyType {
     CHAT_SESSION_CREATE_NOTIFY = 2;
     CHAT_MESSAGE_NOTIFY = 3;
     FRIEND_REMOVE_NOTIFY = 4;
+    CHANGE_GROUPNAME_NOTIFY = 5;
 }
 
 message NotifyFriendAddApply {
@@ -28,7 +29,10 @@ message NotifyNewChatSession {
 message NotifyNewMessage {
     MessageInfo message_info = 1; //新消息
 }
-
+message NewGroupNameMessage {
+    string chat_session_id = 1;
+    string group_name = 2;
+}
 
 message NotifyMessage {
     string notify_event_id = 1;//通知事件操作id（有则填无则忽略）
@@ -39,5 +43,6 @@ message NotifyMessage {
         NotifyFriendRemove friend_remove = 7;
         NotifyNewChatSession new_chat_session_info = 5;//会话信息
         NotifyNewMessage new_message_info = 6;//消息信息
+        NewGroupNameMessage new_group_name = 8;
     }
 }

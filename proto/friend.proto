@@ -134,6 +134,19 @@ message ChatSessionCreateRsp {
     ChatSessionInfo chat_session_info = 4; 
 }
 //--------------------------------------
+//退出群聊
+message ExitGroupReq {
+    string request_id = 1;
+    string session_id = 2;
+    string user_id = 3;
+    string chat_session_id = 4;
+}
+message ExitGroupRsp {
+    string request_id = 1;
+    bool success = 2;
+    string errmsg = 3;
+}
+//--------------------------------------
 //获取会话成员列表
 message GetChatSessionMemberReq {
     string request_id = 1;
@@ -147,10 +160,39 @@ message GetChatSessionMemberRsp {
     string errmsg = 3; 
     repeated UserInfo member_info_list = 4;
 }
+//--------------------------------------
+//修改群聊名称
+message SetGroupnameReq {
+    string request_id = 1;
+    string session_id = 2;
+    string group_name = 3;
+    string chat_session_id = 4;
+}
+message SetGroupnameRsp {
+    string request_id = 1;
+    bool success = 2;
+    string errmsg = 3;
+}
+//--------------------------------------
+//邀请好友进群
+message InviteFriendJoinGroupReq {
+    string request_id = 1;
+    string session_id = 2;
+    string chat_session_id = 3;
+    repeated string user_id_list = 4;
+}
+message InviteFriendJoinGroupRsp {
+    string request_id = 1;
+    bool success = 2;
+    string errmsg = 3;
+    ChatSessionInfo chat_session_info = 4;
+}
 
 service FriendService {
     rpc GetFriendList(GetFriendListReq) returns (GetFriendListRsp);
     rpc FriendRemove(FriendRemoveReq) returns (FriendRemoveRsp);
+    rpc ExitGroup(ExitGroupReq) returns (ExitGroupRsp);
+    rpc ChangeGroupname(SetGroupnameReq) returns (SetGroupnameRsp);
     rpc FriendAdd(FriendAddReq) returns (FriendAddRsp);
     rpc FriendAddProcess(FriendAddProcessReq) returns (FriendAddProcessRsp);
     rpc FriendSearch(FriendSearchReq) returns (FriendSearchRsp);

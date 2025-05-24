@@ -15,7 +15,7 @@ class ChooseFriendItem : public QWidget
 {
     Q_OBJECT
 public:
-    ChooseFriendItem(const QString& userId, const QIcon& avatar, const QString& name, bool checked);
+    ChooseFriendItem(const QString& userId, const QIcon& avatar, const QString& name, bool checked, bool enable = true);
     void paintEvent(QPaintEvent* event) override;
     void enterEvent(QEnterEvent* event) override;
     void leaveEvent(QEvent* event) override;
@@ -30,6 +30,7 @@ private:
     QLabel* nameLabel;
 
     bool isHover = false;
+    bool enable;
 
     QString userId;
 signals:

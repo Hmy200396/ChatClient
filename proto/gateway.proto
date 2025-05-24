@@ -63,6 +63,9 @@ message ClientAuthenticationRsp {
         创建消息会话                    /service/friend/create_chat_session
         获取消息会话成员列表             /service/friend/get_chat_session_member
         获取待处理好友申请事件列表       /service/friend/get_pending_friend_events
+        退出群聊                      /service/friend/exit_group
+        修改群聊名称                    /service/friend/set_groupname
+        邀请好友进群                    /service/friend/join_group
 
         获取历史消息/离线消息列表        /service/message_storage/get_history
         获取最近N条消息列表             /service/message_storage/get_recent

@@ -152,11 +152,20 @@ public:
 
     // 创建群聊
     void createGroupChatSessionAsync(const QList<QString>& userIdList);
+    // 退出群聊
+    void exitGroupChatSessionAsync(const QString& chatSessionId);
+    void removeChatSession(const QString& chatSessionId);
 
     // 获取群组的成员列表
     void getMemberListAsync(const QString& chatSessionId);
     QList<UserInfo>* getMemberList(const QString& chatSessionId);
     void resetMemberList(const QString& chatSessionId, const QList<proto::UserInfo>& memberList);
+
+    // 邀请好友进群
+    void inviteFriendJoinFroupAsync(const QString& chatSessionId, const QList<QString>& userIdList);
+
+    // 修改群聊名称
+    void changeGroupnameAsync(const QString& chatSessionId, const QString& groupname);
 
     // 搜索用户
     void searchUserAsync(const QString& searchKey);
@@ -181,6 +190,9 @@ public:
 
     // 语音转文字
     void speechConvertTextAsync(const QString& fileId, const QByteArray& content);
+
+    // 获取文件 id
+    void getFileIdAsync(const QString& messageId);
 
     /////////////////////////////////////////////////////////////////
     /// 辅助函数
@@ -226,6 +238,7 @@ signals:
     void rejectFriendApplyDone();
     void updateApplyListUI();
     void createGroupChatSessionDone();
+    void exitGroupChatSessionDone();
     void receiveSessionCreateDone();
     void getMemberListDone(const QString& chatSessionId);
     void searchUserDone();
@@ -238,6 +251,8 @@ signals:
     void getSingleFileFail(const QString& fileId, const QString& reason);
     void stopAllSound();
     void speechConvertTextDone(const QString& fileId, const QString& text);
+    void changeGroupnameDone(const QString& chatSessionId, const QString& groupname);
+    void getFileIdDone(const QString& messageId, const QString& fileId);
 };
 
 

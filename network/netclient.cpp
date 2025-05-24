@@ -105,6 +105,16 @@ void NetClient::handleWsResponse(const proto::NotifyMessage &notifyMessage)
         const QString& userId = notifyMessage.friendRemove().userId();
         handleWsRemoveFriend(userId);
     }
+    else if(notifyMessage.notifyType() == proto::NotifyTypeGadget::NotifyType::CHANGE_GROUPNAME_NOTIFY)
+    {
+        // 更新群聊名称通知
+        const QString& chatSessionId = notifyMessage.newGroupName().chatSessionId();
+        const QString& gruopname = notifyMessage.newGroupName().groupName();
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        model::ChatSessionInfo* chatSessionIngo = dataCenter->findChatSessionById(chatSessionId);
+        chatSessionIngo->chatSessionName = gruopname;
+        emit dataCenter->changeGroupnameDone(chatSessionId, gruopname);
+    }
 }
 
 void NetClient::handleWsMessage(const model::Message &message)
@@ -161,6 +171,7 @@ void NetClient::handleWsAddFriendApply(const model::UserInfo &userInfo)
 
 void NetClient::handleWsSessionCreate(const model::ChatSessionInfo &chatSessionInfo)
 {
+    LOG()<<"handleWsSessionCreate";
     // 把这个 ChatSessionInfo 添加到会话列表
     QList<model::ChatSessionInfo>* chatSessionList = dataCenter->getSessionList();
     if(chatSessionList == nullptr)
@@ -520,7 +531,7 @@ void NetClient::receiveMessage(const QString &chatSessionId)
     {
         // 收到的消息，是选中的会话
         // 在消息展示区新增一个消息
-        const model::Message lastMessage = dataCenter->getRecentMessageList(chatSessionId)->back();
+        model::Message lastMessage = dataCenter->getRecentMessageList(chatSessionId)->back();
         // 通过信号，让 netClient 模块，能够通知界面（消息展示区）
         emit dataCenter->receiveMessageDone(lastMessage);
     }
@@ -936,6 +947,46 @@ void NetClient::createGroupChatSession(const QString &loginSessionId, const QLis
     });
 }
 
+void NetClient::exitGroupChatSession(const QString &loginSessionId, const QString &chatSessionId)
+{
+    // 退出群聊                      /service/friend/exit_group
+    // 1. 构造请求 body
+    proto::ExitGroupReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setChatSessionId(chatSessionId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[退出群聊] 发送请求 requestId = " << pbReq.requestId() << ", loginSessionId = " << pbReq.sessionId()<< ", chatSessionId = " << chatSessionId;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/exit_group", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::ExitGroupRsp> pbResp = this->handleHttpResponse<proto::ExitGroupRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[退出群聊] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 结果保存到 dataCenter
+        dataCenter->removeChatSession(chatSessionId);
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->exitGroupChatSessionDone();
+        emit dataCenter->deleteFriendDone();
+
+        //e) 打印日志
+        LOG() << "[退出群聊] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
 void NetClient::getMemberList(const QString &loginSessionId, const QString &chatSessionId)
 {
     // 获取消息会话成员列表             /service/friend/get_chat_session_member
@@ -1347,6 +1398,127 @@ void NetClient::speechConvertText(const QString &loginSessionId, const QString &
 
         //e) 打印日志
         LOG() << "[语音转文字] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::changeGroupnameAsync(const QString &loginSessionId, const QString &chatSessionId, const QString &groupname)
+{
+    // 修改群聊名称                    /service/friend/set_groupname
+    // 1. 构造请求 body
+    proto::SetGroupnameReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setGroupName(groupname);
+    pbReq.setChatSessionId(chatSessionId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[修改群聊名称] 发送请求 requestId = " << pbReq.requestId() << ",  loginSessionId= " << pbReq.sessionId()
+          << ", chatSessionId = " << chatSessionId << ", groupname = " << groupname;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/set_groupname", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::SetGroupnameRsp> pbResp = this->handleHttpResponse<proto::SetGroupnameRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[修改群聊名称] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 使用 DataCenter 保存
+        model::ChatSessionInfo* chatSessionInfo = dataCenter->findChatSessionById(chatSessionId);
+        chatSessionInfo->chatSessionName = groupname;
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->changeGroupnameDone(chatSessionId, groupname);
+
+        //e) 打印日志
+        LOG() << "[修改群聊名称] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::getFileId(const QString &loginSessionId, const QString &messageId)
+{
+    // 获取文件id                    /service/message_storage/get_file_id
+    // 1. 构造请求 body
+    proto::GetFileIdReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setMessageId(messageId);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[获取文件id] 发送请求 requestId = " << pbReq.requestId() << ",  loginSessionId= " << pbReq.sessionId()
+          << ", messageId = " << messageId;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/message_storage/get_file_id", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::GetFileIdRsp> pbResp = this->handleHttpResponse<proto::GetFileIdRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[获取文件id] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 不需要 DataCenter 保存
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        emit dataCenter->getFileIdDone(messageId, pbResp->fileId());
+
+        //e) 打印日志
+        LOG() << "[获取文件id] 响应完毕！ requestId = " << pbResp->requestId();
+    });
+}
+
+void NetClient::inviteFriendJoinFroup(const QString &loginSessionId, const QString &chatSessionId, const QList<QString> &userIdList)
+{
+    // 邀请好友进群                    /service/friend/join_group
+    // 1. 构造请求 body
+    proto::InviteFriendJoinGroupReq pbReq;
+    pbReq.setRequestId(makeRequestId());
+    pbReq.setSessionId(loginSessionId);
+    pbReq.setChatSessionId(chatSessionId);
+    pbReq.setUserIdList(userIdList);
+    QByteArray body = pbReq.serialize(&serializer);
+    LOG()<<"[邀请好友进群] 发送请求 requestId = " << pbReq.requestId() << ",  loginSessionId= " << pbReq.sessionId()
+          << ", chatSessionId = " << chatSessionId;
+
+    // 2. 发送 HTTP 请求
+    QNetworkReply* resp = this->sendHttpRequest("/service/friend/join_group", body);
+
+    // 3. 处理响应
+    connect(resp, &QNetworkReply::finished, this, [=](){
+        // a) 处理响应对象
+        bool ok = false;
+        QString reason;
+        std::shared_ptr<proto::InviteFriendJoinGroupRsp> pbResp = this->handleHttpResponse<proto::InviteFriendJoinGroupRsp>(resp, &ok, &reason);
+
+        // b) 判断响应是否正确
+        if(!ok)
+        {
+            LOG() << "[邀请好友进群] 响应出错！reason = " << reason;
+            return;
+        }
+
+        // c) 不需要 DataCenter 保存
+
+        // d) 通知调用逻辑，响应已经处理完了，通过信号槽通知
+        //emit dataCenter->inviteFriendJoinGroupDone(messageId, pbResp->fileId());
+
+        //e) 打印日志
+        LOG() << "[邀请好友进群] 响应完毕！ requestId = " << pbResp->requestId();
     });
 }
 

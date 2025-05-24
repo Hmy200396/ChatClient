@@ -471,6 +471,33 @@ void DataCenter::createGroupChatSessionAsync(const QList<QString> &userIdList)
     netClient.createGroupChatSession(loginSessionId, userIdList);
 }
 
+void DataCenter::exitGroupChatSessionAsync(const QString &chatSessionId)
+{
+    netClient.exitGroupChatSession(loginSessionId, chatSessionId);
+}
+
+void DataCenter::removeChatSession(const QString &chatSessionId)
+{
+    // 遍历 好友列表 friendList
+    if(chatSessionList == nullptr)
+        return;
+
+    // 还要考虑 会话列表 chatSessionList
+    chatSessionList->removeIf([=](const ChatSessionInfo& chatSessionInfo){
+        if(chatSessionInfo.userId == "")
+        {
+            // 群聊
+            if(chatSessionInfo.chatSessionId == chatSessionId)
+            {
+                if(chatSessionInfo.chatSessionId == this->currentChatSessionId)
+                    emit this->clearCurrentSession();
+            }
+            return true;
+        }
+        return false;
+    });
+}
+
 void DataCenter::getMemberListAsync(const QString &chatSessionId)
 {
     netClient.getMemberList(loginSessionId, chatSessionId);
@@ -495,6 +522,16 @@ void DataCenter::resetMemberList(const QString &chatSessionId, const QList<proto
         userInfo.load(m);
         currentMemberList.push_back(userInfo);
     }
+}
+
+void DataCenter::inviteFriendJoinFroupAsync(const QString &chatSessionId, const QList<QString> &userIdList)
+{
+    netClient.inviteFriendJoinFroup(loginSessionId, chatSessionId, userIdList);
+}
+
+void DataCenter::changeGroupnameAsync(const QString &chatSessionId, const QString &groupname)
+{
+    netClient.changeGroupnameAsync(loginSessionId, chatSessionId, groupname);
 }
 
 void DataCenter::searchUserAsync(const QString &searchKey)
@@ -588,6 +625,11 @@ void DataCenter::getSingleFileAsync(const QString &fileId)
 void DataCenter::speechConvertTextAsync(const QString &fileId, const QByteArray &content)
 {
     netClient.speechConvertText(loginSessionId, fileId, content);
+}
+
+void DataCenter::getFileIdAsync(const QString &messageId)
+{
+    netClient.getFileId(loginSessionId, messageId);
 }
 
 ChatSessionInfo *DataCenter::findChatSessionById(const QString &chatSessionId)

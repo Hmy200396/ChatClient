@@ -7,6 +7,7 @@
 #include <QProtobufSerializer>
 #include <QNetworkReply>
 #include "../model/data.h"
+#include "../debug.h"
 
 namespace model {
 class DataCenter;
@@ -21,8 +22,13 @@ class NetClient : public QObject
 {
     Q_OBJECT
 private:
+#if TEST_SERVER
     const QString HTTP_URL = "http://127.0.0.1:8000";
     const QString WEBSOCKET_URL = "ws://127.0.0.1:8001/ws";
+#else
+    const QString HTTP_URL = "http://43.139.150.42:9000";
+    const QString WEBSOCKET_URL = "ws://43.139.150.42:9001/ws";
+#endif
 
 public:
     NetClient(model::DataCenter* dataCenter);
@@ -98,6 +104,7 @@ public:
     void acceptFriendApply(const QString& loginSessionId, const QString& userId);
     void rejectFriendApply(const QString& loginSessionId, const QString& userId);
     void createGroupChatSession(const QString& loginSessionId, const QList<QString>& userIdList);
+    void exitGroupChatSession(const QString& loginSessionId, const QString& chatSessionId);
     void getMemberList(const QString& loginSessionId, const QString& chatSessionId);
     void searchUser(const QString& loginSessionId, const QString& searchKey);
     void searchMessage(const QString& loginSessionId, const QString& chatSessionId, const QString& searchKey);
@@ -108,6 +115,9 @@ public:
     void phoneRegister(const QString &phone, const QString &verifyCodeId, const QString &verifyCode);
     void getSingleFile(const QString &loginSessionId, const QString &fileId);
     void speechConvertText(const QString &loginSessionId, const QString &fileId, const QByteArray& content);
+    void changeGroupnameAsync(const QString &loginSessionId, const QString &chatSessionId, const QString &groupname);
+    void getFileId(const QString &loginSessionId, const QString &messageId);
+    void inviteFriendJoinFroup(const QString &loginSessionId, const QString &chatSessionId, const QList<QString> &userIdList);
 
 private:
     model::DataCenter* dataCenter;

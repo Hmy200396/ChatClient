@@ -185,10 +185,15 @@ public:
 
         // 设置消息类型
         auto type = messageInfo.message().messageType();
+        LOG()<<type;
         if(type == proto::MessageTypeGadget::MessageType::STRING)
         {
             this->messageType = TEXT_TYPE;
-            this->content = messageInfo.message().stringMessage().content().toUtf8();
+            if(messageInfo.message().hasStringMessage())
+            ///LOG()<<"end";
+                this->content = messageInfo.message().stringMessage().content().toUtf8();
+            else
+                this->content = "开始聊天把！";
         }
         else if (type == proto::MessageTypeGadget::MessageType::IMAGE)
         {

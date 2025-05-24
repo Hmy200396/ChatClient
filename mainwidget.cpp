@@ -181,7 +181,7 @@ void MainWidget::initRightWindow()
     titleWidget->setLayout(hlayout);
 
     sessionTitleLabel = new QLabel();
-    sessionTitleLabel->setStyleSheet("QLabel { font-size: 22px; font-weight: 600; font-family: 'SimSun'; border-bottom: 1px solid rgb(230, 230, 230);}");
+    sessionTitleLabel->setStyleSheet("QLabel { color: black; font-size: 22px; font-weight: 600; font-family: 'SimSun'; border-bottom: 1px solid rgb(230, 230, 230);}");
 
     // 临时测试
 #if TEST_UI
@@ -267,7 +267,7 @@ void MainWidget::initSignalSlot()
         else
         {
             // 群聊
-            GroupSessionDetailWidget* groupSessionDetailWidget = new GroupSessionDetailWidget(this);
+            GroupSessionDetailWidget* groupSessionDetailWidget = new GroupSessionDetailWidget(this, chatSessionInfo);
             groupSessionDetailWidget->exec();
         }
 
@@ -408,6 +408,13 @@ void MainWidget::initSignalSlot()
     connect(dataCenter, &model::DataCenter::receiveSessionCreateDone, this, [=](){
         this->updateChatSessionList();
         Toast::showMessage("您被拉入到新的群聊中");
+    });
+
+    connect(dataCenter, &model::DataCenter::changeGroupnameDone, this, [=](const QString& chatSessionId, const QString& groupname){
+        model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        if(chatSessionId == dataCenter->getCurrentChatSessionId())
+            sessionTitleLabel->setText(groupname);
+        this->updateChatSessionList();
     });
 }
 

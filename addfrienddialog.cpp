@@ -30,7 +30,8 @@ FriendResultItem::FriendResultItem(const model::UserInfo &userInfo)
     QPushButton* avatarBtn = new QPushButton();
     avatarBtn->setFixedSize(50, 50);
     avatarBtn->setIconSize(QSize(50, 50));
-    avatarBtn->setIcon(QIcon(":/resource/image/defaultAvatar.jpg"));
+    avatarBtn->setIcon(QIcon(userInfo.avatar));
+    //avatarBtn->setIcon(QIcon(":/resource/image/defaultAvatar.jpg"));
 
     // 4. 创建用户昵称
     QLabel* nameLabel = new QLabel();

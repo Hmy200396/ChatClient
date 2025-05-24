@@ -48,6 +48,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         network/netclient.h network/netclient.cpp
         verifycodewidget.h verifycodewidget.cpp
         soundrecorder.h soundrecorder.cpp
+        invitefriendjoingroupdialog.h invitefriendjoingroupdialog.cpp
 
     )
 #new add

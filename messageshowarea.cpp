@@ -192,7 +192,7 @@ MessageItem *MessageItem::makeMessageItem(bool isLeft, const model::Message &mes
         contentWidget = makeImageMessageItem(isLeft, message.fileId, message.content);
         break;
     case model::FILE_TYPE:
-        contentWidget = makeFileMessageItem(isLeft, message.fileId, message.fileName, path);
+        contentWidget = makeFileMessageItem(isLeft, message.messageId, message.fileId, message.fileName, path);
         break;
     case model::SPEECH_TYPE:
         contentWidget = makeSpeechMessageItem(isLeft, message);
@@ -245,9 +245,9 @@ QWidget *MessageItem::makeImageMessageItem(bool isLeft, const QString& fileId, c
     return messageImageLabel;
 }
 
-QWidget *MessageItem::makeFileMessageItem(bool isLeft, const QString &fileId, const QString &fileName, const QString& filePath)
+QWidget *MessageItem::makeFileMessageItem(bool isLeft, const QString &messageId, const QString &fileId, const QString &fileName, const QString& filePath)
 {
-    MessageFileLabel* messageFileLabel = new MessageFileLabel(fileId, fileName, filePath, isLeft);
+    MessageFileLabel* messageFileLabel = new MessageFileLabel(messageId, fileId, fileName, filePath, isLeft);
     return messageFileLabel;
 }
 
@@ -267,7 +267,7 @@ MessageContentLabel::MessageContentLabel(const QString &text, bool isLeft)
     font.setPixelSize(16);
 
     this->label = new QLabel(this);
-    this->label->setText(text);
+    this->label->setText(text.isEmpty() ? "开始聊天把!" : text);
     this->label->setFont(font);
     this->label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
     this->label->setWordWrap(true); // 文本自动换行
@@ -443,8 +443,8 @@ void MessageImageLabel::paintEvent(QPaintEvent *event)
     }
 }
 
-MessageFileLabel::MessageFileLabel(const QString &fileId, const QString &fileName, const QString& filePath, bool isLeft)
-    :isLeft(isLeft), fileId(fileId), fileName(fileName), filePath(filePath)
+MessageFileLabel::MessageFileLabel(const QString& messageId, const QString &fileId, const QString &fileName, const QString& filePath, bool isLeft)
+    :messageId(messageId),isLeft(isLeft), fileId(fileId), fileName(fileName), filePath(filePath)
 {
     this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
@@ -479,6 +479,17 @@ void MessageFileLabel::mousePressEvent(QMouseEvent *event)
     if(this->filePath.isEmpty())
     {
         model::DataCenter* dataCenter = model::DataCenter::getInstance();
+        if(this->fileId.isEmpty())
+        {
+            connect(dataCenter, &model::DataCenter::getFileIdDone, this, [=](const QString& messageId, const QString& fileId){
+                if(this->messageId != messageId)
+                    return;
+                this->fileId = fileId;
+                mousePressEvent(nullptr);
+            });
+            dataCenter->getFileIdAsync(messageId);
+            return;
+        }
         this->label->setText("[文件][正在下载]"+fileName);
         dataCenter->getSingleFileAsync(this->fileId);
     }
@@ -618,7 +629,7 @@ void MessageFileLabel::saveFile(const QString &fileId, const QByteArray &content
 }
 
 MessageSpeechLabel::MessageSpeechLabel(bool isLeft, const model::Message& message)
-    :isLeft(isLeft), content(message.content), fileId(message.fileId)
+    :messageId(message.messageId),isLeft(isLeft), content(message.content), fileId(message.fileId)
 {
     this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
@@ -645,7 +656,24 @@ MessageSpeechLabel::MessageSpeechLabel(bool isLeft, const model::Message& messag
     });
     if(message.content.isEmpty())
     {
-        dataCenter->getSingleFileAsync(fileId);
+        if(this->fileId.isEmpty())
+        {
+            connect(dataCenter, &model::DataCenter::getFileIdDone, this, [=](const QString& messageId, const QString& fileId){
+                if(this->messageId != messageId)
+                    return;
+                this->fileId = fileId;
+                dataCenter->getSingleFileAsync(fileId);
+            });
+            dataCenter->getFileIdAsync(messageId);
+        }
+        else
+        {
+            dataCenter->getSingleFileAsync(fileId);
+        }
+    }
+    else
+    {
+        this->label->setText("[语音]");
     }
 
     connect(dataCenter, &model::DataCenter::stopAllSound, this, &MessageSpeechLabel::playStop);
@@ -653,7 +681,8 @@ MessageSpeechLabel::MessageSpeechLabel(bool isLeft, const model::Message& messag
 
 void MessageSpeechLabel::mousePressEvent(QMouseEvent *event)
 {
-    if(event->button() == Qt::RightButton) {
+    if(event->button() == Qt::RightButton)
+    {
         return;
     }
     if(content.isEmpty())

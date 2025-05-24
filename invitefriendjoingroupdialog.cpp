@@ -1,145 +1,13 @@
-#include "choosefrienddialog.h"
+#include "invitefriendjoingroupdialog.h"
+#include "model/datacenter.h"
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QPainter>
-#include "debug.h"
-#include "model/data.h"
-#include "model/datacenter.h"
-#include "toast.h"
-#include "invitefriendjoingroupdialog.h"
-
-///////////////////////////////////////
-/// 选择好友窗口中的一个元素
-///////////////////////////////////////
-ChooseFriendItem::ChooseFriendItem(const QString& userId, const QIcon &avatar, const QString &name, bool checked, bool enable)
-    :userId(userId)
-{
-    // 1. 设置控件的基本属性
-    this->setFixedHeight(50);
-    this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
-    // 2. 设置布局管理器
-    QHBoxLayout* layout = new QHBoxLayout();
-    layout->setContentsMargins(20, 0, 20, 0);
-    layout->setSpacing(10);
-    this->setLayout(layout);
-
-    // 3. 设置复选框
-    checkBox = new QCheckBox();
-    checkBox->setChecked(checked);
-    checkBox->setFixedSize(25 ,25);
-    checkBox->setStyleSheet("QCheckBox { background-color: transparent; }"
-                            "QCheckBox::indicator { width: 20px; height: 20px; }"
-                            "QCheckBox::indicator:unchecked { image: url(:resource/image/unchecked.png); }"
-                            "QCheckBox::indicator:checked { image: url(:resource/image/checked.png); }");
-    checkBox->setEnabled(enable);
-
-    // 4. 创建头像
-    avatarBtn = new QPushButton();
-    avatarBtn->setFixedSize(40, 40);
-    avatarBtn->setIconSize(QSize(40, 40));
-    avatarBtn->setIcon(avatar);
-    avatarBtn->setStyleSheet("QPushButton { background-color: transparent; }");
-
-    // 5. 创建名字
-    nameLabel = new QLabel();
-    nameLabel->setText(name);
-    nameLabel->setStyleSheet("QLabel { background-color: transparent; color: black; }");
-
-    // 6. 添加到布局管理器
-    layout->addWidget(checkBox);
-    layout->addWidget(avatarBtn);
-    layout->addWidget(nameLabel);
-
-    // 7. 连接信号槽
-    connect(checkBox, &QCheckBox::toggled, this, [=](bool checked){
-        if(checked)
-        {
-            // 勾选了
-            emit chooseOneFriend();
-            // 这四个parent分别是 totalContainer  qt_scrollarea_viewport  QScrollArea  ChooseFriendDialog
-            ChooseFriendDialog* chooseFriendDialog = qobject_cast<ChooseFriendDialog*>(this->parent()->parent()->parent()->parent());
-            if(chooseFriendDialog)
-            {
-                chooseFriendDialog->addSelectedFriend(userId, avatar, name);
-                return;
-            }
-            InviteFriendJoinGroupDialog* inviteFriendJoinGroupDialog = qobject_cast<InviteFriendJoinGroupDialog*>(this->parent()->parent()->parent()->parent());
-            if(inviteFriendJoinGroupDialog)
-            {
-                inviteFriendJoinGroupDialog->addSelectedFriend(userId, avatar, name);
-                return;
-            }
-            LOG()<<"父组件查询错误";
-            // if(chooseFriendDialog)
-            //     chooseFriendDialog->addSelectedFriend(userId, avatar, name);
-            // else
-            // {
-            //     LOG()<<"父组件查询错误";
-            // }
-        }
-        else
-        {
-            // 没有勾选
-            emit cancelOneFriend();
-            ChooseFriendDialog* chooseFriendDialog = qobject_cast<ChooseFriendDialog*>(this->parent()->parent()->parent()->parent());
-            if(chooseFriendDialog)
-            {
-                chooseFriendDialog->deleteSelectedFriend(userId);
-                return;
-            }
-            InviteFriendJoinGroupDialog* inviteFriendJoinGroupDialog = qobject_cast<InviteFriendJoinGroupDialog*>(this->parent()->parent()->parent()->parent());
-            if(inviteFriendJoinGroupDialog)
-            {
-                inviteFriendJoinGroupDialog->deleteSelectedFriend(userId);
-                return;
-            }
-            LOG()<<"父组件查询错误";
-            // ChooseFriendDialog* chooseFriendDialog = qobject_cast<ChooseFriendDialog*>(this->parent()->parent()->parent()->parent());
-            // if(chooseFriendDialog)
-            //     chooseFriendDialog->deleteSelectedFriend(userId);
-            // else
-            //     LOG()<<"父组件查询错误";
-        }
-    });
-}
-
-void ChooseFriendItem::paintEvent(QPaintEvent *event)
-{
-    // 根据鼠标的进入状态，决定绘制成不同的颜色
-    QPainter painter(this);
-    if(isHover)
-    {
-        painter.fillRect(this->rect(), QColor(230, 230 ,230));
-    }
-    else
-    {
-        painter.fillRect(this->rect(), QColor(255, 255 ,255));
-    }
-}
-
-void ChooseFriendItem::enterEvent(QEnterEvent *event)
-{
-    isHover = true;
-    this->update();
-}
-
-void ChooseFriendItem::leaveEvent(QEvent *event)
-{
-    isHover = false;
-    this->update();
-}
-
-const QString& ChooseFriendItem::getUserId()
-{
-    return userId;
-}
 
 ///////////////////////////////////////
 /// 选择好友的窗口
 ///////////////////////////////////////
-ChooseFriendDialog::ChooseFriendDialog(QWidget* parent, const QString& userId)
-    :QDialog(parent), userId(userId)
+InviteFriendJoinGroupDialog::InviteFriendJoinGroupDialog(QWidget* parent, const QList<QString>& userIdList)
+    :QDialog(parent), userIdList(userIdList)
 {
     // 1. 设置窗口基本属性
     this->setWindowTitle("选择好友");
@@ -164,7 +32,7 @@ ChooseFriendDialog::ChooseFriendDialog(QWidget* parent, const QString& userId)
     initData();
 }
 
-void ChooseFriendDialog::initLeft(QHBoxLayout *layout)
+void InviteFriendJoinGroupDialog::initLeft(QHBoxLayout *layout)
 {
     // 1. 创建滚动区域
     QScrollArea* scrollArea = new QScrollArea();
@@ -223,7 +91,7 @@ void ChooseFriendDialog::initLeft(QHBoxLayout *layout)
 #endif
 }
 
-void ChooseFriendDialog::initRight(QHBoxLayout *layout)
+void InviteFriendJoinGroupDialog::initRight(QHBoxLayout *layout)
 {
     // 1. 创建右侧布局管理器
     QGridLayout* gridLayout = new QGridLayout();
@@ -313,11 +181,11 @@ void ChooseFriendDialog::initRight(QHBoxLayout *layout)
     gridLayout->addWidget(cancelBtn, 2, 5, 1, 3);
 
     // 8. 添加信号槽，处理 ok 和 cancel 点击
-    connect(okBtn, &QPushButton::clicked, this, &ChooseFriendDialog::clickOkBtn);
+    connect(okBtn, &QPushButton::clicked, this, &InviteFriendJoinGroupDialog::clickOkBtn);
     connect(cancelBtn, &QPushButton::clicked, this, [=](){this->close();});
 }
 
-void ChooseFriendDialog::initData()
+void InviteFriendJoinGroupDialog::initData()
 {
     // 遍历好友列表，把好友列表中的所有元素，添加到这个窗口上
     model::DataCenter* dataCenter = model::DataCenter::getInstance();
@@ -329,10 +197,18 @@ void ChooseFriendDialog::initData()
     }
     for(auto it = friendList->begin(); it != friendList->end(); ++it)
     {
-        if(it->userId == this->userId)
+        bool ifchoose = true;
+        for(auto& userId : userIdList)
         {
-            this->addSelectedFriend(it->userId, it->avatar, it->nickname);
-            this->addFriend(it->userId, it->avatar, it->nickname, true);
+            if(it->userId == userId)
+            {
+                ifchoose = false;
+            }
+
+        }
+        if(!ifchoose)
+        {
+            this->addFriend(it->userId, it->avatar, it->nickname, true, false);
         }
         else
         {
@@ -341,15 +217,15 @@ void ChooseFriendDialog::initData()
     }
 }
 
-void ChooseFriendDialog::addFriend(const QString& userId, const QIcon &avatar, const QString &name, bool checked)
+void InviteFriendJoinGroupDialog::addFriend(const QString& userId, const QIcon &avatar, const QString &name, bool checked, bool enable)
 {
     QString style = "QPushButton { color: rgb(7, 191, 96); background-color: rgb(240, 240, 240); border: none; border-radius: 5px; }";
     style += "QPushButton:hover {background-color: rgb(220, 220, 220);}";
     style += "QPushButton:pressed {background-color: rgb(200, 200, 200);}";
-    ChooseFriendItem* item = new ChooseFriendItem(userId, avatar, name, checked);
+    ChooseFriendItem* item = new ChooseFriendItem(userId, avatar, name, checked, enable);
     connect(item, &ChooseFriendItem::chooseOneFriend, this, [=](){
         ++this->count;
-        if(count < 2)
+        if(count == 0)
         {
             okBtn->setEnabled(false);
             okBtn->setStyleSheet("QPushButton{ background-color: rgb(180, 180, 180); }");
@@ -362,7 +238,7 @@ void ChooseFriendDialog::addFriend(const QString& userId, const QIcon &avatar, c
     });
     connect(item, &ChooseFriendItem::cancelOneFriend, this, [=](){
         --this->count;
-        if(count < 2)
+        if(count == 0)
         {
             okBtn->setEnabled(false);
             okBtn->setStyleSheet("QPushButton{ background-color: rgb(180, 180, 180); }");
@@ -376,13 +252,13 @@ void ChooseFriendDialog::addFriend(const QString& userId, const QIcon &avatar, c
     totalContainer->layout()->addWidget(item);
 }
 
-void ChooseFriendDialog::addSelectedFriend(const QString& userId, const QIcon &avatar, const QString &name)
+void InviteFriendJoinGroupDialog::addSelectedFriend(const QString& userId, const QIcon &avatar, const QString &name)
 {
     ChooseFriendItem* item = new ChooseFriendItem(userId, avatar, name, true);
     selectedContainer->layout()->addWidget(item);
 }
 
-void ChooseFriendDialog::deleteSelectedFriend(const QString &userId)
+void InviteFriendJoinGroupDialog::deleteSelectedFriend(const QString &userId)
 {
     // 遍历 selectedContainer 中的每个 Item ，对比userId
     QVBoxLayout* vlayout = dynamic_cast<QVBoxLayout*>(selectedContainer->layout());
@@ -417,38 +293,26 @@ void ChooseFriendDialog::deleteSelectedFriend(const QString &userId)
     }
 }
 
-void ChooseFriendDialog::clickOkBtn()
+void InviteFriendJoinGroupDialog::clickOkBtn()
 {
     // 1. 根据选中的好友列表中的元素，得到所有的要创建群聊会话的用户 id 列表
-    QList<QString> userIdList =generateMemberList();
-    // if(userIdList.size() < 3)
-    // {
-    //     Toast::showMessage("群聊中成员不足三个，无法创建群聊");
-    //     return;
-    // }
+    QList<QString> uidList =generateMemberList();
 
     // 2. 发送网络请求，创建群聊
     model::DataCenter* dataCenter = model::DataCenter::getInstance();
-    dataCenter->createGroupChatSessionAsync(userIdList);
+    dataCenter->inviteFriendJoinFroupAsync(dataCenter->getCurrentChatSessionId(), uidList);
 
     // 3. 关闭当前窗口
     this->close();
 }
 
-QList<QString> ChooseFriendDialog::generateMemberList()
+QList<QString> InviteFriendJoinGroupDialog::generateMemberList()
 {
     QList<QString> result;
 
-    // 1. 把自己添加到结果中
     model::DataCenter* dataCenter = model::DataCenter::getInstance();
-    if(dataCenter->getMyself() == nullptr)
-    {
-        LOG()<<"个人信息尚未加载";
-        return result;
-    }
-    result.push_back(dataCenter->getMyself()->userId);
 
-    // 2. 遍历选中的列表
+    // 1. 遍历选中的列表
     // 遍历 selectedContainer 中的每个 Item
     QVBoxLayout* vlayout = dynamic_cast<QVBoxLayout*>(selectedContainer->layout());
     for(int i = 0; i < vlayout->count(); ++i)
